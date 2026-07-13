@@ -60,14 +60,20 @@ const GalleryPage: FC = () => {
         src={item.original}
         alt={item.originalAlt ?? ""}
         onLoad={() => setIsLoading(false)}
+        onError={() => setIsLoading(false)}
         className="gallery-image"
+        loading="lazy"
       />
     </div>
   );
 
   const renderModal = () =>
     isOpen && (
-      <div className="modal modal--visible">
+      <div className="modal modal--visible" role="dialog" aria-modal="true" aria-label="Image gallery">
+        <div
+          className="modal-overlay"
+          onClick={closeModal}
+        />
         <div className="modal-content">
           <div className="modal-header u-flex u-center u-justify-space-between">
             <h5 className="modal-title mb-0">Images</h5>
@@ -85,11 +91,6 @@ const GalleryPage: FC = () => {
             />
           </div>
         </div>
-        <div
-          className="modal-overlay"
-          onClick={closeModal}
-          style={{ background: "rgba(0,0,0,0.55)" }}
-        />
       </div>
     );
 

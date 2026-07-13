@@ -139,7 +139,8 @@ input:focus {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100%;
+  min-height: 280px;
+  padding: 0.5rem 0;
 }
 
 .gallery-image {
@@ -147,9 +148,11 @@ input:focus {
   margin: 0 auto;
   width: auto;
   height: auto;
-  max-width: 100%;
-  /* leave space for header + thumbnails + modal paddings so previews stay visible */
-  max-height: calc(100vh - var(--modal-reserve));
+  max-width: min(100%, 1100px);
+  max-height: min(68vh, 760px);
+  min-width: 220px;
+  object-fit: contain;
+  border-radius: 10px;
 }
 
 .gallery-scroll {
@@ -163,6 +166,22 @@ input:focus {
 .image-gallery {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+}
+
+.image-gallery-slide {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-gallery-image {
+  max-width: min(100%, 1100px);
+  max-height: min(68vh, 760px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto;
 }
 
 .image-gallery-slide-wrapper,
@@ -174,20 +193,88 @@ input:focus {
   flex: 0 0 auto;
   overflow: auto;
   max-height: clamp(56px, 12vh, 120px);
+  padding-top: 0.25rem;
 }
 
-/* Place modal content lower on the page so it doesn't sit under a fixed header */
+.image-gallery-thumbnail {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.image-gallery-thumbnail.active,
+.image-gallery-thumbnail:hover {
+  border-color: #1f4ed8;
+}
+
+/* Ensure the gallery dialog opens as a proper overlay instead of flowing inline. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
 .modal.modal--visible {
-  align-items: flex-start !important;
-  padding: 0 !important;
-  padding-top: calc(
-    var(--header-height) + 1rem
-  ) !important; /* adjust to match header height */
+  display: flex;
+  align-items: flex-start;
+  padding: 0;
+  padding-top: calc(var(--header-height) + 1rem);
+}
+
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 12, 24, 0.68);
+  backdrop-filter: blur(4px);
 }
 
 .modal .modal-content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 1100px);
+  max-width: min(95vw, 1100px);
+  max-height: calc(100vh - var(--header-height) - 2rem);
+  overflow: hidden;
   margin-top: 0 !important;
   box-sizing: border-box;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.modal-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #0f172a;
+}
+
+.modal-body {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.modal .btn.btn-transparent {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  padding: 0.35rem;
+  border-radius: 999px;
+}
+
+.modal .btn.btn-transparent:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
 }
 
 /* Header active link styling */
