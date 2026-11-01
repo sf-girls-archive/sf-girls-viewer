@@ -9,7 +9,7 @@ import {
   type ModifiedSpine,
   type SettingsGlobal,
 } from "../types";
-import { menuItems } from "../utils";
+import { menuItems } from "../utils/DropdownUtils";
 
 export const pixiAppAtom = atom<Application | null>(null);
 export const pixiAppSettingsGlobalAtom = atomWithStorage<SettingsGlobal>(

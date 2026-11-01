@@ -17,6 +17,7 @@ import SidebarToggleButton from "../components/common/Button/SidebarToggleButton
 import StageExportButton from "../components/common/Button/StageExportButton";
 import type { EntityMap, FileMeta } from "../types";
 import {
+  getEntityOptions,
   getEntitySceneOptions,
   getSceneData,
 } from "../utils";
@@ -50,6 +51,7 @@ const ScenePage: FC = () => {
     [searchParams],
   );
   const stageKey = JSON.stringify(stageParams);
+  const initializedStage = useRef(false);
   const lastRestoredStageKey = useRef<string | null>(null);
   const activeAnimation = animationList[animationList.length - 1];
   const rendererLabels = Array.from(
@@ -65,6 +67,45 @@ const ScenePage: FC = () => {
       lastRestoredStageKey.current === stageKey
     ) {
       return;
+    }
+
+    if (!initializedStage.current) {
+      initializedStage.current = true;
+
+      if (stageParams.length === 0) {
+        const agents = getEntityOptions(entityMap).flatMap(
+          ({ options }) => options,
+        );
+        const agent =
+          agents.find((option) => option.value === searchParams.get("agent")) ??
+          agents[0];
+        const animations = agent
+          ? getSceneOptions(entityMap, agent.value)
+          : [];
+        const animation =
+          animations.find(
+            (option) => option.value === searchParams.get("animation"),
+          ) ?? animations[0];
+
+        if (agent && animation) {
+          lastRestoredStageKey.current = stageKey;
+          setSearchParams(
+            (previous) => {
+              if (previous.getAll("stage").length > 0) {
+                return previous;
+              }
+
+              const next = new URLSearchParams(previous);
+              next.set("agent", agent.value);
+              next.set("animation", animation.value);
+              next.append("stage", `${agent.value}:${animation.value}`);
+              return next;
+            },
+            { replace: true },
+          );
+          return;
+        }
+      }
     }
 
     const restoredEntries = stageParams.flatMap((stageParam) => {
@@ -137,6 +178,7 @@ const ScenePage: FC = () => {
     pixiApp,
     setFileQueue,
     setSearchParams,
+    searchParams,
     stageKey,
     stageParams,
   ]);
