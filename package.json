@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": "18 || 20 || >=22"
+    "node": "22.x"
+  },
+  "allowScripts": {
+    "esbuild@0.25.1": true
   },
   "scripts": {
     "dev": "vite",

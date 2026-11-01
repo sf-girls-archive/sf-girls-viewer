@@ -13,6 +13,6 @@ cd public/sf-girls-assets
 git lfs pull
 cd ../../
 
-# React build
-npm install
+unset npm_config_cache_dir NPM_CONFIG_CACHE_DIR
+
 npm run build

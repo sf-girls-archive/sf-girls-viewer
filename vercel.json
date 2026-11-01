@@ -1,5 +1,6 @@
 {
   "framework": "vite",
   "rewrites": [{ "source": "/(.*)", "destination": "/" }],
+  "installCommand": "unset npm_config_cache_dir NPM_CONFIG_CACHE_DIR && npm install",
   "buildCommand": "bash scripts/vercel-build.sh"
 }
