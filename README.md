@@ -15,8 +15,9 @@ The **SF-Girls Viewer** is a web-based tool that allows players to explore in-ga
 - **Asset Exploration** – Browse and analyze in-game textures, sprites, and effects
 - **Optimized Performance** – Lightweight and efficient for smooth operation
 
-MP4 export depends on browser support for MP4 canvas recording. GIF export is
-available independently of that support.
+Video export uses MP4 when the browser supports MP4 canvas recording and falls
+back to WebM when available. GIF export is available independently of video
+recording support.
 
 ## Getting Started
 

@@ -4,21 +4,35 @@ import type { GifWriteFrameOptions } from "gifenc";
 export const STAGE_EXPORT_DURATION_SECONDS = 5;
 
 const GIF_FRAME_RATE = 12;
-const MP4_FRAME_RATE = 30;
-const MP4_MIME_TYPES = ["video/mp4;codecs=avc1.42E01E", "video/mp4"];
-const MP4_BACKGROUND_FALLBACK = "#0b1120";
+const VIDEO_FRAME_RATE = 30;
+const VIDEO_FORMATS = [
+  {
+    format: "mp4",
+    mimeTypes: ["video/mp4;codecs=avc1.42E01E", "video/mp4"],
+  },
+  {
+    format: "webm",
+    mimeTypes: ["video/webm;codecs=vp8", "video/webm;codecs=vp9", "video/webm"],
+  },
+] as const;
+const VIDEO_BACKGROUND_FALLBACK = "#0b1120";
 
 type ExportProgress = (progress: number) => void;
+export type VideoExportFormat = (typeof VIDEO_FORMATS)[number]["format"];
+export type SupportedVideoFormat = {
+  format: VideoExportFormat;
+  mimeType: string;
+};
 
 const getStageBackgroundColor = (app: Application) => {
   const stageCanvas = app.renderer.view as HTMLCanvasElement;
   const stageSurface = stageCanvas.closest(".stage-viewport");
   const surfaceColor = stageSurface
     ? getComputedStyle(stageSurface).backgroundColor
-    : MP4_BACKGROUND_FALLBACK;
+    : VIDEO_BACKGROUND_FALLBACK;
 
   return surfaceColor === "rgba(0, 0, 0, 0)"
-    ? MP4_BACKGROUND_FALLBACK
+    ? VIDEO_BACKGROUND_FALLBACK
     : surfaceColor;
 };
 
@@ -82,12 +96,7 @@ export const exportStageGif = async (
       options.repeat = 0;
     }
 
-    encoder.writeFrame(
-      applyPalette(pixels, palette),
-      width,
-      height,
-      options,
-    );
+    encoder.writeFrame(applyPalette(pixels, palette), width, height, options);
   };
 
   writeFrame(
@@ -107,7 +116,10 @@ export const exportStageGif = async (
     }
 
     const frame = getStagePixels(app);
-    if (frame.width !== firstFrame.width || frame.height !== firstFrame.height) {
+    if (
+      frame.width !== firstFrame.width ||
+      frame.height !== firstFrame.height
+    ) {
       throw new Error("The stage size changed during GIF export.");
     }
 
@@ -116,28 +128,37 @@ export const exportStageGif = async (
   }
 
   encoder.finish();
-  return new Blob([encoder.bytes()], { type: "image/gif" });
+  const encodedBytes = encoder.bytes();
+  const encodedBuffer = new ArrayBuffer(encodedBytes.byteLength);
+  new Uint8Array(encodedBuffer).set(encodedBytes);
+  return new Blob([encodedBuffer], { type: "image/gif" });
 };
 
-export const getSupportedMp4MimeType = (): string | null => {
+export const getSupportedVideoFormat = (): SupportedVideoFormat | null => {
   if (typeof MediaRecorder === "undefined") {
     return null;
   }
 
-  return (
-    MP4_MIME_TYPES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ??
-    null
-  );
+  for (const { format, mimeTypes } of VIDEO_FORMATS) {
+    const mimeType = mimeTypes.find((type) =>
+      MediaRecorder.isTypeSupported(type),
+    );
+    if (mimeType) {
+      return { format, mimeType };
+    }
+  }
+
+  return null;
 };
 
-export const exportStageMp4 = (
+export const exportStageVideo = (
   app: Application,
   onProgress: ExportProgress,
-): Promise<Blob> => {
-  const mimeType = getSupportedMp4MimeType();
-  if (!mimeType) {
+): Promise<{ blob: Blob; format: VideoExportFormat }> => {
+  const videoFormat = getSupportedVideoFormat();
+  if (!videoFormat) {
     return Promise.reject(
-      new Error("MP4 recording is not supported by this browser."),
+      new Error("Video recording is not supported by this browser."),
     );
   }
 
@@ -163,121 +184,138 @@ export const exportStageMp4 = (
       frame.width !== recordingCanvas.width ||
       frame.height !== recordingCanvas.height
     ) {
-      throw new Error("The stage size changed during MP4 export.");
+      throw new Error("The stage size changed during video export.");
     }
 
     context.putImageData(frame.imageData, 0, 0);
   };
 
   drawStage(firstFrame);
-  const stream = recordingCanvas.captureStream(MP4_FRAME_RATE);
+  const stream = recordingCanvas.captureStream(VIDEO_FRAME_RATE);
 
-  return new Promise<Blob>((resolve, reject) => {
-    let recorder: MediaRecorder;
-    try {
-      recorder = new MediaRecorder(stream, { mimeType });
-    } catch (error) {
-      stream.getTracks().forEach((track) => track.stop());
-      reject(error instanceof Error ? error : new Error("Could not start MP4 recording."));
-      return;
-    }
-
-    const chunks: Blob[] = [];
-    let drawTimer: number | undefined;
-    let progressTimer: number | undefined;
-    let stopTimer: number | undefined;
-    let settled = false;
-    let startedAt = 0;
-
-    const cleanup = () => {
-      if (drawTimer !== undefined) {
-        window.clearInterval(drawTimer);
-      }
-      if (progressTimer !== undefined) {
-        window.clearInterval(progressTimer);
-      }
-      if (stopTimer !== undefined) {
-        window.clearTimeout(stopTimer);
-      }
-      stream.getTracks().forEach((track) => track.stop());
-    };
-
-    const fail = (error: Error) => {
-      if (settled) {
+  return new Promise<{ blob: Blob; format: VideoExportFormat }>(
+    (resolve, reject) => {
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, {
+          mimeType: videoFormat.mimeType,
+        });
+      } catch (error) {
+        stream.getTracks().forEach((track) => track.stop());
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("Could not start video recording."),
+        );
         return;
       }
 
-      settled = true;
-      cleanup();
-      if (recorder.state !== "inactive") {
-        recorder.stop();
-      }
-      reject(error);
-    };
+      const chunks: Blob[] = [];
+      let drawTimer: number | undefined;
+      let progressTimer: number | undefined;
+      let stopTimer: number | undefined;
+      let settled = false;
+      let startedAt = 0;
 
-    recorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) {
-        chunks.push(event.data);
-      }
-    });
+      const cleanup = () => {
+        if (drawTimer !== undefined) {
+          window.clearInterval(drawTimer);
+        }
+        if (progressTimer !== undefined) {
+          window.clearInterval(progressTimer);
+        }
+        if (stopTimer !== undefined) {
+          window.clearTimeout(stopTimer);
+        }
+        stream.getTracks().forEach((track) => track.stop());
+      };
 
-    recorder.addEventListener(
-      "error",
-      () => fail(new Error("The browser could not record the stage as MP4.")),
-      { once: true },
-    );
-
-    recorder.addEventListener(
-      "stop",
-      () => {
+      const fail = (error: Error) => {
         if (settled) {
           return;
         }
 
         settled = true;
         cleanup();
-
-        if (chunks.length === 0) {
-          reject(new Error("The MP4 recording did not contain any video frames."));
-          return;
-        }
-
-        onProgress(1);
-        resolve(new Blob(chunks, { type: mimeType }));
-      },
-      { once: true },
-    );
-
-    try {
-      recorder.start(250);
-      startedAt = performance.now();
-      drawTimer = window.setInterval(() => {
-        try {
-          drawStage();
-        } catch (error) {
-          fail(
-            error instanceof Error
-              ? error
-              : new Error("Could not capture the stage frame."),
-          );
-        }
-      }, 1000 / MP4_FRAME_RATE);
-      progressTimer = window.setInterval(() => {
-        onProgress(
-          Math.min(
-            1,
-            (performance.now() - startedAt) /
-              (STAGE_EXPORT_DURATION_SECONDS * 1000),
-          ),
-        );
-      }, 100);
-      stopTimer = window.setTimeout(() => {
-        if (recorder.state === "recording") {
+        if (recorder.state !== "inactive") {
           recorder.stop();
         }
-      }, STAGE_EXPORT_DURATION_SECONDS * 1000);
-    } catch (error) {
-      fail(error instanceof Error ? error : new Error("Could not start MP4 recording."));
-    }
-  });
+        reject(error);
+      };
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      });
+
+      recorder.addEventListener(
+        "error",
+        () => fail(new Error("The browser could not record the stage as MP4.")),
+        { once: true },
+      );
+
+      recorder.addEventListener(
+        "stop",
+        () => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          cleanup();
+
+          if (chunks.length === 0) {
+            reject(
+              new Error("The video recording did not contain any frames."),
+            );
+            return;
+          }
+
+          onProgress(1);
+          resolve({
+            blob: new Blob(chunks, { type: videoFormat.mimeType }),
+            format: videoFormat.format,
+          });
+        },
+        { once: true },
+      );
+
+      try {
+        recorder.start(250);
+        startedAt = performance.now();
+        drawTimer = window.setInterval(() => {
+          try {
+            drawStage();
+          } catch (error) {
+            fail(
+              error instanceof Error
+                ? error
+                : new Error("Could not capture the stage frame."),
+            );
+          }
+        }, 1000 / VIDEO_FRAME_RATE);
+        progressTimer = window.setInterval(() => {
+          onProgress(
+            Math.min(
+              1,
+              (performance.now() - startedAt) /
+                (STAGE_EXPORT_DURATION_SECONDS * 1000),
+            ),
+          );
+        }, 100);
+        stopTimer = window.setTimeout(() => {
+          if (recorder.state === "recording") {
+            recorder.stop();
+          }
+        }, STAGE_EXPORT_DURATION_SECONDS * 1000);
+      } catch (error) {
+        fail(
+          error instanceof Error
+            ? error
+            : new Error("Could not start video recording."),
+        );
+      }
+    },
+  );
 };

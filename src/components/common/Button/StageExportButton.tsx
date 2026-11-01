@@ -3,17 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { pixiAnimationListAtom, pixiAppAtom } from "../../../atoms";
 import {
   exportStageGif,
-  exportStageMp4,
-  getSupportedMp4MimeType,
+  exportStageVideo,
+  getSupportedVideoFormat,
   STAGE_EXPORT_DURATION_SECONDS,
 } from "../../../utils";
 
-type ExportFormat = "gif" | "mp4";
-
-const formatLabels: Record<ExportFormat, string> = {
-  gif: "GIF",
-  mp4: "MP4",
-};
+type ExportFormat = "gif" | "video";
 
 const downloadBlob = (blob: Blob, fileName: string) => {
   const url = URL.createObjectURL(blob);
@@ -38,11 +33,12 @@ const StageExportButton = () => {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const mp4MimeType = getSupportedMp4MimeType();
-  const canExportMp4 =
-    mp4MimeType !== null &&
+  const videoFormat = getSupportedVideoFormat();
+  const videoFormatLabel = videoFormat?.format.toUpperCase() ?? "Video";
+  const canExportVideo =
+    videoFormat !== null &&
     typeof HTMLCanvasElement !== "undefined" &&
-    "captureStream" in HTMLCanvasElement.prototype;
+    typeof HTMLCanvasElement.prototype.captureStream === "function";
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -74,15 +70,23 @@ const StageExportButton = () => {
     setErrorMessage(null);
 
     try {
-      const blob =
-        format === "gif"
-          ? await exportStageGif(app, setProgress)
-          : await exportStageMp4(app, setProgress);
+      let blob: Blob;
+      let outputFormat: string;
+      if (format === "gif") {
+        blob = await exportStageGif(app, setProgress);
+        outputFormat = "gif";
+      } else {
+        const video = await exportStageVideo(app, setProgress);
+        blob = video.blob;
+        outputFormat = video.format;
+      }
 
-      downloadBlob(blob, `sf-girls-stage.${format}`);
-      setStatusMessage(`${formatLabels[format]} download started.`);
+      const formatLabel = outputFormat.toUpperCase();
+      downloadBlob(blob, `sf-girls-stage.${outputFormat}`);
+      setStatusMessage(`${formatLabel} download started.`);
     } catch (error) {
-      console.error(`Failed to export the stage as ${formatLabels[format]}:`, error);
+      const formatLabel = format === "gif" ? "GIF" : videoFormatLabel;
+      console.error(`Failed to export the stage as ${formatLabel}:`, error);
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -109,7 +113,7 @@ const StageExportButton = () => {
           setIsOpen(true);
         }}
         disabled={!app || animationCount === 0}
-        aria-label="Export the current stage as a GIF or MP4"
+        aria-label={`Export the current stage as a GIF or ${videoFormatLabel}`}
         title="Export stage animation"
       >
         <svg
@@ -163,8 +167,8 @@ const StageExportButton = () => {
 
           <p className="export-dialog__summary">
             {animationCount} {animationCount === 1 ? "animation" : "animations"}{" "}
-            <span>/</span> {stageWidth} × {stageHeight}{" "}
-            <span>/</span> {STAGE_EXPORT_DURATION_SECONDS} seconds
+            <span>/</span> {stageWidth} × {stageHeight} <span>/</span>{" "}
+            {STAGE_EXPORT_DURATION_SECONDS} seconds
           </p>
           <p
             className="export-dialog__description"
@@ -199,19 +203,23 @@ const StageExportButton = () => {
               className="export-format-option"
               type="button"
               onClick={() => {
-                void runExport("mp4");
+                void runExport("video");
               }}
-              disabled={isExporting || !canExportMp4}
+              disabled={isExporting || !canExportVideo}
               title={
-                canExportMp4
-                  ? "Export a five-second MP4"
-                  : "MP4 recording is not supported by this browser"
+                canExportVideo
+                  ? `Export a five-second ${videoFormatLabel}`
+                  : "Video recording is not supported by this browser"
               }
             >
-              <span className="export-format-option__badge">MP4</span>
+              <span className="export-format-option__badge">
+                {videoFormatLabel.toUpperCase()}
+              </span>
               <span className="export-format-option__copy">
                 <strong>
-                  {exportingFormat === "mp4" ? "Recording MP4…" : "MP4 video"}
+                  {exportingFormat === "video"
+                    ? `Recording ${videoFormatLabel}…`
+                    : `${videoFormatLabel} video`}
                 </strong>
                 <small>30 frames/sec · five-second clip</small>
               </span>
@@ -221,10 +229,10 @@ const StageExportButton = () => {
             </button>
           </div>
 
-          {!canExportMp4 && (
+          {!canExportVideo && (
             <p className="export-dialog__note">
-              MP4 recording is unavailable in this browser. GIF export is still
-              supported.
+              Video recording is unavailable in this browser. GIF export is
+              still supported.
             </p>
           )}
 
@@ -234,7 +242,7 @@ const StageExportButton = () => {
                 <span>
                   {exportingFormat === "gif"
                     ? "Encoding animated frames"
-                    : "Recording the canvas"}
+                    : `Recording ${videoFormatLabel}`}
                 </span>
                 <span className="export-dialog__progress-value">
                   {Math.round(progress * 100)}%
@@ -243,7 +251,7 @@ const StageExportButton = () => {
               <progress
                 max={1}
                 value={progress}
-                aria-label={`${formatLabels[exportingFormat]} export progress`}
+                aria-label={`${exportingFormat === "gif" ? "GIF" : videoFormatLabel} export progress`}
               />
             </div>
           )}
