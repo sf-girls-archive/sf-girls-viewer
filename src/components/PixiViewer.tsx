@@ -39,6 +39,8 @@ export const PixiViewer = () => {
   useEffect(() => {
     const background = app?.renderer?.background;
     if (background) {
+      // PixiJS exposes its renderer background as mutable external state.
+      // eslint-disable-next-line react-hooks/immutability -- Syncing it belongs in this effect.
       background.color = new Color(appSettings.backgroundColor);
       background.alpha = appSettings.backgroundAlpha;
     }
@@ -56,9 +58,7 @@ export const PixiViewer = () => {
           setAnimationList((previous) => [...previous, animation]);
         }
       } else {
-        setAnimationList((previous) =>
-          removeAnimation(app, newFile, previous),
-        );
+        setAnimationList((previous) => removeAnimation(app, newFile, previous));
       }
 
       setFileQueue((previous) =>

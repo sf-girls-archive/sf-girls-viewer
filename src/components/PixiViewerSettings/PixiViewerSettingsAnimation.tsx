@@ -1,6 +1,6 @@
 import { useAtomValue } from "jotai";
 import { type ISpineDebugRenderer, SpineDebugRenderer } from "pixi-spine";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, useState } from "react";
 import { pixiAnimationListAtom } from "../../atoms";
 import type {
   ModifiedContainer,
@@ -98,16 +98,27 @@ const getSettings = (
     alpha: parent.alpha,
     angle: parent.angle,
     scale: parent.scale.x,
-    skew: Math.min(
-      1,
-      Math.max(0, (parent.skew.x + Math.PI / 2) / Math.PI),
-    ),
+    skew: Math.min(1, Math.max(0, (parent.skew.x + Math.PI / 2) / Math.PI)),
     timeScale: isLive2D ? 1 : (animation as ModifiedSpine).state.timeScale,
     allowClick: parent.allowClick ?? true,
     allowDrag: parent.allowDrag ?? true,
     autoUpdate: isLive2D ? true : (animation as ModifiedSpine).autoUpdate,
     debug: isLive2D ? false : Boolean((animation as ModifiedSpine).debug),
   };
+};
+
+const defaultAnimationSettings: AnimationSettings = {
+  x: 0,
+  y: 0,
+  alpha: 1,
+  angle: 0,
+  scale: 1,
+  skew: 0.5,
+  timeScale: 1,
+  allowClick: true,
+  allowDrag: true,
+  autoUpdate: true,
+  debug: false,
 };
 
 export const PixiViewerSettingsAnimation = ({
@@ -118,27 +129,15 @@ export const PixiViewerSettingsAnimation = ({
   const animation = animationList.find(
     (listItem) => listItem.meta.index === selectedTab,
   );
+  const [settingsAnimation, setSettingsAnimation] = useState(animation);
   const [settings, setSettings] = useState<AnimationSettings>(() =>
-    animation ? getSettings(animation) : {
-      x: 0,
-      y: 0,
-      alpha: 1,
-      angle: 0,
-      scale: 1,
-      skew: 0.5,
-      timeScale: 1,
-      allowClick: true,
-      allowDrag: true,
-      autoUpdate: true,
-      debug: false,
-    },
+    animation ? getSettings(animation) : defaultAnimationSettings,
   );
 
-  useEffect(() => {
-    if (animation) {
-      setSettings(getSettings(animation));
-    }
-  }, [animation]);
+  if (animation !== settingsAnimation) {
+    setSettingsAnimation(animation);
+    setSettings(animation ? getSettings(animation) : defaultAnimationSettings);
+  }
 
   if (!animation) {
     return (

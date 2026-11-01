@@ -19,10 +19,49 @@ const getInitialTheme = (): Theme => {
     : "dark";
 };
 
-export const Header = () => {
+const PrimaryNavigation = ({ search }: { search: string }) => {
   const [isOpen, setIsOpen] = useState(false);
+  return (
+    <>
+      <button
+        className={`mobile-nav-toggle${isOpen ? " is-open" : ""}`}
+        type="button"
+        aria-label={isOpen ? "Close navigation" : "Open navigation"}
+        aria-expanded={isOpen}
+        aria-controls="primary-navigation"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        {isOpen ? "Close" : "Menu"}
+      </button>
+
+      <nav
+        className={`primary-nav${isOpen ? " is-open" : ""}`}
+        id="primary-navigation"
+        aria-label="Primary navigation"
+      >
+        <NavLink
+          to={{ pathname: "/", search }}
+          end
+          className="primary-nav__link"
+        >
+          <span>Viewer</span>
+          <small>01</small>
+        </NavLink>
+        <NavLink
+          to={{ pathname: "/agents", search }}
+          className="primary-nav__link"
+        >
+          <span>Agents</span>
+          <small>02</small>
+        </NavLink>
+      </nav>
+    </>
+  );
+};
+
+export const Header = () => {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const assetIndexStatus = useAtomValue(assetIndexStatusAtom);
   const assetIndexError = useAtomValue(assetIndexErrorAtom);
   const statusLabel = {
@@ -30,10 +69,6 @@ export const Header = () => {
     online: "ASSET INDEX ONLINE",
     offline: "ASSET INDEX OFFLINE",
   }[assetIndexStatus];
-
-  useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -46,38 +81,18 @@ export const Header = () => {
   return (
     <header className="site-header">
       <div className="site-header__inner">
-        <Link className="brand-lockup" to="/" aria-label="SF Girls Viewer">
+        <Link
+          className="brand-lockup"
+          to={{ pathname: "/", search }}
+          aria-label="SF Girls Viewer"
+        >
           <span className="brand-copy">
             <strong>SF GIRLS</strong>
             <small>AGENT ANIMATIONS</small>
           </span>
         </Link>
 
-        <button
-          className={`mobile-nav-toggle${isOpen ? " is-open" : ""}`}
-          type="button"
-          aria-label={isOpen ? "Close navigation" : "Open navigation"}
-          aria-expanded={isOpen}
-          aria-controls="primary-navigation"
-          onClick={() => setIsOpen((open) => !open)}
-        >
-          {isOpen ? "Close" : "Menu"}
-        </button>
-
-        <nav
-          className={`primary-nav${isOpen ? " is-open" : ""}`}
-          id="primary-navigation"
-          aria-label="Primary navigation"
-        >
-          <NavLink to="/" end className="primary-nav__link">
-            <span>Viewer</span>
-            <small>01</small>
-          </NavLink>
-          <NavLink to="/agents" className="primary-nav__link">
-            <span>Agents</span>
-            <small>02</small>
-          </NavLink>
-        </nav>
+        <PrimaryNavigation key={pathname} search={search} />
 
         <div className="site-header__actions">
           <span

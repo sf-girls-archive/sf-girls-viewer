@@ -41,21 +41,15 @@ export const getAnimations = (
   animation: Live2DModel | Spine,
   isLive2D: boolean,
 ): string[] => {
-  let animations = [];
-
-  if (isLive2D) {
-    animations =
-      Object.keys(
+  const animations: string[] = isLive2D
+    ? Object.keys(
         (animation as ModifiedLive2D).internalModel.motionManager.definitions,
-      ) ?? [];
-  } else {
-    animations =
-      (animation as ModifiedSpine)?.spineData?.animations.map(
+      )
+    : ((animation as ModifiedSpine)?.spineData?.animations.map(
         (animation) => animation.name,
-      ) ?? [];
-  }
+      ) ?? []);
 
-  animations = animations.filter((animation) => {
+  const relevantAnimations = animations.filter((animation) => {
     // exclude background/foreground animations
     for (const animationName of ["action", "idle", "touch", "attack", "dead"]) {
       if (animation.toLowerCase().includes(animationName)) {
@@ -65,7 +59,7 @@ export const getAnimations = (
     return false;
   });
 
-  return customSort(animations);
+  return customSort(relevantAnimations);
 };
 
 export const getSkins = (
