@@ -6,18 +6,8 @@ type Group = {
 };
 
 export const formatGroupLabel = (group: Group) => (
-  <div className="u-flex u-justify-space-between">
+  <div className="select-group-label">
     <span>{group.label}</span>
-    <span
-      className="bg-gray-100 u-round-full text-gray-700"
-      style={{
-        width: "1.5rem",
-        height: "1.5rem",
-        textAlign: "center",
-        lineHeight: "2",
-      }}
-    >
-      {group.options.length}
-    </span>
+    <span className="select-group-label__count">{group.options.length}</span>
   </div>
 );

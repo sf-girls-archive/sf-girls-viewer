@@ -1,6 +1,11 @@
 import { Application, Container, Sprite } from "pixi.js";
 import type { ModifiedLive2D, ModifiedSpine } from "../../types";
 
+type ViewportSize = {
+  width: number;
+  height: number;
+};
+
 const getBufferFactor = (width: number) => {
   if (width > 3500) return 0.9;
   if (width > 2000) return 0.85;
@@ -43,38 +48,27 @@ const calculateScaleFactor = (
 
 export const setAnimationStyle = (
   element: ModifiedLive2D | ModifiedSpine | Sprite,
+  viewport: ViewportSize,
 ): void => {
   let { height, width } = element.getLocalBounds();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
 
   if (width <= 1 || height <= 1) {
     width = (element as Sprite)._texture.baseTexture.height;
     height = (element as Sprite)._texture.baseTexture.width;
   }
 
-  // Calculate scale
   let scaleFactor = calculateScaleFactor(
-    { height, width },
-    viewportWidth,
-    viewportHeight,
+    { width, height },
+    viewport.width,
+    viewport.height,
   );
 
-  // If the element's source/name indicates a "chibi" variant, render
-  // it at half the computed scale so chibi assets appear smaller.
-  try {
-    const metaName =
-      (element as any)?.meta?.config?.fileName ||
-      (element as any)?.meta?.name ||
-      (element as any)?.name;
-    if (
-      typeof metaName === "string" &&
-      metaName.toLowerCase().includes("chibi")
-    ) {
-      scaleFactor = scaleFactor / 2;
-    }
-  } catch (e) {
-    // ignore and use computed scaleFactor
+  const metaName =
+    "meta" in element && element.meta
+      ? element.meta.config?.fileName || element.meta.name
+      : element.name;
+  if (typeof metaName === "string" && metaName.toLowerCase().includes("chibi")) {
+    scaleFactor /= 2;
   }
 
   element.scale.set(scaleFactor);
@@ -84,9 +78,13 @@ export const setAnimationStyle = (
   }
 };
 
-export const addSprite = (path: string, container: Container): void => {
+export const addSprite = (
+  path: string,
+  container: Container,
+  viewport: ViewportSize,
+): void => {
   const sprite = Sprite.from(path);
-  setAnimationStyle(sprite);
+  setAnimationStyle(sprite, viewport);
   container.addChild(sprite);
 };
 
@@ -110,7 +108,8 @@ export const centerContainer = (
 
 export const initializePixiApp = (): Application =>
   new Application({
-    resizeTo: document.getElementById("app")!,
+    width: 900,
+    height: 600,
     backgroundAlpha: 0,
     resolution: window.devicePixelRatio ?? 1,
     autoDensity: true,

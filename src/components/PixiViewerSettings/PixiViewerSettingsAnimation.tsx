@@ -1,7 +1,6 @@
 import { useAtomValue } from "jotai";
 import { type ISpineDebugRenderer, SpineDebugRenderer } from "pixi-spine";
-import { type ChangeEvent, useState } from "react";
-import { FaAngleLeft } from "react-icons/fa";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { pixiAnimationListAtom } from "../../atoms";
 import type {
   ModifiedContainer,
@@ -22,6 +21,95 @@ type Props = {
   setSelectedTab: (value: string | number) => void;
 };
 
+type AnimationSettings = {
+  x: number;
+  y: number;
+  alpha: number;
+  angle: number;
+  scale: number;
+  skew: number;
+  timeScale: number;
+  allowClick: boolean;
+  allowDrag: boolean;
+  autoUpdate: boolean;
+  debug: boolean;
+};
+
+type NumericSettingKey =
+  | "x"
+  | "y"
+  | "alpha"
+  | "angle"
+  | "scale"
+  | "skew"
+  | "timeScale";
+
+type RangeControlProps = {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  output: string;
+  disabled?: boolean;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+};
+
+const RangeControl = ({
+  id,
+  label,
+  value,
+  min,
+  max,
+  step,
+  output,
+  disabled = false,
+  onChange,
+}: RangeControlProps) => (
+  <div className={`range-field${disabled ? " is-disabled" : ""}`}>
+    <div className="range-field__heading">
+      <label htmlFor={id}>{label}</label>
+      <output htmlFor={id}>{output}</output>
+    </div>
+    <input
+      id={id}
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      aria-valuetext={output}
+    />
+  </div>
+);
+
+const getSettings = (
+  animation: ModifiedLive2D | ModifiedSpine,
+): AnimationSettings => {
+  const isLive2D = getIsLive2D(animation);
+  const parent = animation.parent as ModifiedContainer;
+
+  return {
+    x: animation.x,
+    y: animation.y,
+    alpha: parent.alpha,
+    angle: parent.angle,
+    scale: parent.scale.x,
+    skew: Math.min(
+      1,
+      Math.max(0, (parent.skew.x + Math.PI / 2) / Math.PI),
+    ),
+    timeScale: isLive2D ? 1 : (animation as ModifiedSpine).state.timeScale,
+    allowClick: parent.allowClick ?? true,
+    allowDrag: parent.allowDrag ?? true,
+    autoUpdate: isLive2D ? true : (animation as ModifiedSpine).autoUpdate,
+    debug: isLive2D ? false : Boolean((animation as ModifiedSpine).debug),
+  };
+};
+
 export const PixiViewerSettingsAnimation = ({
   selectedTab,
   setSelectedTab,
@@ -30,25 +118,34 @@ export const PixiViewerSettingsAnimation = ({
   const animation = animationList.find(
     (listItem) => listItem.meta.index === selectedTab,
   );
+  const [settings, setSettings] = useState<AnimationSettings>(() =>
+    animation ? getSettings(animation) : {
+      x: 0,
+      y: 0,
+      alpha: 1,
+      angle: 0,
+      scale: 1,
+      skew: 0.5,
+      timeScale: 1,
+      allowClick: true,
+      allowDrag: true,
+      autoUpdate: true,
+      debug: false,
+    },
+  );
 
-  const [settings, setSettings] = useState({
-    x: animation?.x ?? 0,
-    y: animation?.y ?? 0,
-    // general
-    alpha: animation?.parent.alpha ?? 0,
-    angle: animation?.parent.angle ?? 0,
-    scale: animation?.parent.scale.x ?? 1,
-    skew: animation?.parent.scale.x ?? 0.5,
-    timeScale: 1,
-    allowClick: true,
-    allowDrag: true,
-    autoUpdate: true,
-    // debug
-    debug: false,
-  });
+  useEffect(() => {
+    if (animation) {
+      setSettings(getSettings(animation));
+    }
+  }, [animation]);
 
   if (!animation) {
-    return;
+    return (
+      <p className="empty-list-note">
+        Select a loaded agent to adjust its motion.
+      </p>
+    );
   }
 
   const isLive2D = getIsLive2D(animation);
@@ -56,63 +153,58 @@ export const PixiViewerSettingsAnimation = ({
   const skins = getSkins(animation, isLive2D);
 
   const handleChange =
-    (key: string) => (event: ChangeEvent<HTMLInputElement>) => {
-      const { value } = event.target;
+    (key: NumericSettingKey) => (event: ChangeEvent<HTMLInputElement>) => {
+      const value = Number(event.target.value);
 
       switch (key) {
         case "x":
-          animation.x = parseFloat(value);
+          animation.x = value;
           break;
         case "y":
-          animation.y = parseFloat(value);
+          animation.y = value;
           break;
         case "alpha":
-          animation.parent.alpha = parseFloat(value);
+          animation.parent.alpha = value;
           break;
         case "angle":
-          animation.parent.angle = parseFloat(value);
+          animation.parent.angle = value;
           break;
         case "scale":
-          animation.parent.scale.set(parseFloat(value));
-          // animation.scale.set(parseFloat(value));
+          animation.parent.scale.set(value);
           break;
         case "skew":
-          animation.parent.skew.set(parseFloat(value) * Math.PI - Math.PI / 2);
+          animation.parent.skew.set(value * Math.PI - Math.PI / 2);
           break;
         case "timeScale":
-          if (isLive2D) {
-            // TODO:
-          } else {
-            (animation as ModifiedSpine).state.timeScale = parseFloat(value);
+          if (!isLive2D) {
+            (animation as ModifiedSpine).state.timeScale = value;
           }
           break;
       }
 
-      setSettings((prev) => ({ ...prev, [key]: value }));
+      setSettings((previous) => ({ ...previous, [key]: value }));
     };
 
   const handleToggle =
-    (key: string) => (event: ChangeEvent<HTMLInputElement>) => {
+    (key: "allowClick" | "allowDrag" | "autoUpdate" | "debug") =>
+    (event: ChangeEvent<HTMLInputElement>) => {
       const { checked } = event.target;
+      const parent = animation.parent as ModifiedContainer;
 
       switch (key) {
         case "autoUpdate":
-          if (isLive2D) {
-            // TODO:
-          } else {
+          if (!isLive2D) {
             (animation as ModifiedSpine).autoUpdate = checked;
           }
           break;
         case "allowClick":
-          (animation.parent as ModifiedContainer).allowClick = checked;
+          parent.allowClick = checked;
           break;
         case "allowDrag":
-          (animation.parent as ModifiedContainer).allowDrag = checked;
+          parent.allowDrag = checked;
           break;
         case "debug":
-          if (isLive2D) {
-            // TODO:
-          } else {
+          if (!isLive2D) {
             (animation as ModifiedSpine).debug = checked
               ? new SpineDebugRenderer()
               : (null as unknown as ISpineDebugRenderer);
@@ -120,7 +212,7 @@ export const PixiViewerSettingsAnimation = ({
           break;
       }
 
-      setSettings((prev) => ({ ...prev, [key]: checked }));
+      setSettings((previous) => ({ ...previous, [key]: checked }));
     };
 
   const playAnimation = (animationName: string) => {
@@ -135,212 +227,229 @@ export const PixiViewerSettingsAnimation = ({
     (animation as ModifiedSpine).skeleton.setSkinByName(skinName);
   };
 
-  const goBack = () => setSelectedTab(menuItems[0]);
-
   return (
-    <div>
-      <div
-        className="tile u-border-1 border-gray-200"
-        style={{ borderLeft: "none", borderRight: "none", borderTop: "none" }}
-      >
-        <div className="tile__icon">
-          <button className="btn btn-transparent h-100p" onClick={goBack}>
-            <FaAngleLeft size={16} />
-          </button>
+    <div className="animation-editor">
+      <div className="selected-subject">
+        <button
+          className="back-to-scenes"
+          type="button"
+          onClick={() => setSelectedTab(menuItems[0])}
+          aria-label="Back to scene controls"
+        >
+          Back
+        </button>
+        <div className="selected-subject__copy">
+          <span className="eyebrow">SELECTED AGENT</span>
+          <h3>{animation.meta.name.replace(/_/g, " ")}</h3>
+          <p>{animation.meta.config.name?.replace(/_/g, " ") ?? "Animation"}</p>
         </div>
-        <div className="tile__container p-1">
-          <p className="tile__title m-0">{animation.meta.name}</p>
-          <p className="tile__subtitle m-0">{animation.meta.config.name}</p>
-        </div>
+        <span className="renderer-badge is-active">
+          {isLive2D ? "LIVE2D" : "SPINE"}
+        </span>
       </div>
 
-      <fieldset
-        className="u-flex u-flex-column animated fadeIn u-overflow-x-auto"
-        style={{ maxHeight: "25rem" }}
-      >
-        <details className="accordion">
-          <summary className="accordion__summary u-no-outline">General</summary>
-          <div className="tooltip" data-tooltip={settings.x}>
-            <label htmlFor="x">X</label>
-            <input
-              id="x"
-              type="range"
-              name="x"
-              min="-1000"
-              max="1000"
-              step={1}
+      <div className="animation-editor__scroll">
+        <details className="control-group" open>
+          <summary>
+            <span className="control-group__number">01</span>
+            <span>Transform</span>
+            <small>POSITION / ROTATION / SCALE</small>
+          </summary>
+          <div className="control-group__body">
+            <RangeControl
+              id="animation-x"
+              label="Horizontal position"
               value={settings.x}
+              min={-1000}
+              max={1000}
+              step={1}
+              output={`${Math.round(settings.x)} px`}
               onChange={handleChange("x")}
             />
-          </div>
-          <div className="tooltip" data-tooltip={settings.y}>
-            <label htmlFor="y">Y</label>
-            <input
-              id="y"
-              type="range"
-              name="y"
-              min="-1000"
-              max="1000"
-              step={1}
+            <RangeControl
+              id="animation-y"
+              label="Vertical position"
               value={settings.y}
+              min={-1000}
+              max={1000}
+              step={1}
+              output={`${Math.round(settings.y)} px`}
               onChange={handleChange("y")}
             />
-          </div>
-
-          <div className="tooltip" data-tooltip={settings.alpha}>
-            <label htmlFor="alpha">Alpha</label>
-            <input
-              id="alpha"
-              type="range"
-              name="alpha"
-              min="0"
-              max="1"
-              step={0.01}
+            <RangeControl
+              id="animation-alpha"
+              label="Opacity"
               value={settings.alpha}
+              min={0}
+              max={1}
+              step={0.01}
+              output={`${Math.round(settings.alpha * 100)}%`}
               onChange={handleChange("alpha")}
             />
-          </div>
-          <div className="tooltip" data-tooltip={`${settings.angle}°`}>
-            <label htmlFor="angle">Angle</label>
-            <input
-              id="angle"
-              type="range"
-              name="angle"
-              min="0"
-              max="360"
-              step={1}
+            <RangeControl
+              id="animation-angle"
+              label="Rotation"
               value={settings.angle}
+              min={0}
+              max={360}
+              step={1}
+              output={`${Math.round(settings.angle)} deg`}
               onChange={handleChange("angle")}
             />
-          </div>
-          <div className="tooltip" data-tooltip={settings.scale}>
-            <label htmlFor="alpha">Scale</label>
-            <input
-              id="alpha"
-              type="range"
-              name="alpha"
-              min="0"
-              max="4"
-              step={0.01}
+            <RangeControl
+              id="animation-scale"
+              label="Scale"
               value={settings.scale}
+              min={0}
+              max={4}
+              step={0.01}
+              output={`${settings.scale.toFixed(2)}x`}
               onChange={handleChange("scale")}
             />
-          </div>
-          <div className="tooltip" data-tooltip={settings.skew}>
-            <label htmlFor="skew">Skew</label>
-            <input
-              id="skew"
-              type="range"
-              name="skew"
-              min="0"
-              max="1"
-              step={0.01}
+            <RangeControl
+              id="animation-skew"
+              label="Skew"
               value={settings.skew}
+              min={0}
+              max={1}
+              step={0.01}
+              output={settings.skew.toFixed(2)}
               onChange={handleChange("skew")}
             />
           </div>
-          <div
-            className="tooltip"
-            data-tooltip={`${Math.round(settings.timeScale * 100)} %`}
-          >
-            <label htmlFor="timeScale">Playback Speed</label>
-            <input
-              id="timeScale"
-              type="range"
-              name="timeScale"
-              min="0"
-              max="4"
-              step={0.05}
+        </details>
+
+        <details className="control-group" open>
+          <summary>
+            <span className="control-group__number">02</span>
+            <span>Playback</span>
+            <small>{animations.length} CLIPS</small>
+          </summary>
+          <div className="control-group__body">
+            <RangeControl
+              id="animation-speed"
+              label="Playback speed"
               value={settings.timeScale}
+              min={0}
+              max={4}
+              step={0.05}
+              output={`${settings.timeScale.toFixed(2)}x`}
+              disabled={isLive2D}
               onChange={handleChange("timeScale")}
             />
-          </div>
-          <div className="form-ext-control form-ext-checkbox">
-            <input
-              id="allowClick"
-              className="form-ext-input"
-              type="checkbox"
-              checked={settings.allowClick}
-              onChange={handleToggle("allowClick")}
-            />
-            <label className="form-ext-label" htmlFor="allowClick">
-              Allow Click
+            {isLive2D && (
+              <p className="control-hint">
+                Speed adjustment is available for Spine animations.
+              </p>
+            )}
+            {animations.length > 0 ? (
+              <div className="motion-list">
+                {animations.map((animationName, index) => (
+                  <button
+                    key={animationName}
+                    className="motion-choice"
+                    type="button"
+                    onClick={() => playAnimation(animationName)}
+                  >
+                    <span className="motion-choice__index">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span>{animationName.replace(/_/g, " ")}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="control-hint">No named motions were found.</p>
+            )}
+            <label className="toggle-row">
+              <span>
+                <strong>Click to trigger</strong>
+                <small>Play a reaction when you tap the model.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.allowClick}
+                onChange={handleToggle("allowClick")}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
             </label>
-          </div>
-          <div className="form-ext-control form-ext-checkbox">
-            <input
-              id="allowDrag"
-              className="form-ext-input"
-              type="checkbox"
-              checked={settings.allowDrag}
-              onChange={handleToggle("allowDrag")}
-            />
-            <label className="form-ext-label" htmlFor="allowDrag">
-              Allow Drag
+            <label className="toggle-row">
+              <span>
+                <strong>Drag to reposition</strong>
+                <small>Move the agent around the stage.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.allowDrag}
+                onChange={handleToggle("allowDrag")}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
             </label>
-          </div>
-          <div className="form-ext-control form-ext-checkbox">
-            <input
-              id="autoUpdate"
-              className="form-ext-input"
-              type="checkbox"
-              checked={settings.autoUpdate}
-              onChange={handleToggle("autoUpdate")}
-            />
-            <label className="form-ext-label" htmlFor="autoUpdate">
-              Auto Update Animation
+            <label className={`toggle-row${isLive2D ? " is-disabled" : ""}`}>
+              <span>
+                <strong>Auto update</strong>
+                <small>Advance Spine animation state each frame.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.autoUpdate}
+                onChange={handleToggle("autoUpdate")}
+                disabled={isLive2D}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
             </label>
           </div>
         </details>
-
-        {animations.length > 0 && (
-          <details className="accordion">
-            <summary className="accordion__summary u-no-outline">
-              Animations
-            </summary>
-            {animations.map((animationName) => (
-              <button
-                key={animationName}
-                className=" w-100p"
-                onClick={() => playAnimation(animationName)}
-              >
-                {animationName}
-              </button>
-            ))}
-          </details>
-        )}
 
         {skins.length > 0 && (
-          <details className="accordion">
-            <summary className="accordion__summary u-no-outline">Skins</summary>
-            {skins.map((skinName) => (
-              <button
-                key={skinName}
-                className=" w-100p"
-                onClick={() => changeSkin(skinName)}
-              >
-                {skinName}
-              </button>
-            ))}
+          <details className="control-group">
+            <summary>
+              <span className="control-group__number">03</span>
+              <span>Costume</span>
+              <small>{skins.length} SKINS</small>
+            </summary>
+            <div className="control-group__body">
+              <div className="skin-list">
+                {skins.map((skinName) => (
+                  <button
+                    key={skinName}
+                    className="skin-choice"
+                    type="button"
+                    onClick={() => changeSkin(skinName)}
+                  >
+                    {skinName.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
           </details>
         )}
 
-        <details className="accordion">
-          <summary className="accordion__summary u-no-outline">Debug</summary>
-          <div className="form-ext-control form-ext-checkbox">
-            <input
-              id="debug"
-              className="form-ext-input"
-              type="checkbox"
-              checked={settings.debug}
-              onChange={handleToggle("debug")}
-            />
-            <label className="form-ext-label" htmlFor="debug">
-              Debug Rendering
+        <details className="control-group">
+          <summary>
+            <span className="control-group__number">
+              {skins.length > 0 ? "04" : "03"}
+            </span>
+            <span>Diagnostics</span>
+            <small>ADVANCED</small>
+          </summary>
+          <div className="control-group__body">
+            <label className={`toggle-row${isLive2D ? " is-disabled" : ""}`}>
+              <span>
+                <strong>Debug rendering</strong>
+                <small>Show the Spine skeleton and bounds.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.debug}
+                onChange={handleToggle("debug")}
+                disabled={isLive2D}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
             </label>
           </div>
         </details>
-      </fieldset>
+      </div>
     </div>
   );
 };

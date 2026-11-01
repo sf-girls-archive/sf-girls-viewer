@@ -41,25 +41,12 @@ const PixiVN: FC = () => {
   }
 
   return (
-    <div
-      className="tile u-absolute u-bottom-4 mx-10 p-1 bg-gray-200 u-round-md u-shadow-md"
-      style={{
-        left: "50%",
-        transform: "translateX(-50%)",
-      }}
-    >
-      <div className="u-flex u-flex-column tile__container">
-        <div>
-          <NarrationScreen />
-        </div>
-        <div className="u-absolute u-right-0 u-bottom-0">
-          <NextButton />
-        </div>
-        <div>
-          TODO
-          {/* NarrationSettings (<BackButton />) */}
-        </div>
+    <div className="narration-card">
+      <NarrationScreen />
+      <div className="narration-card__actions">
+        <NextButton />
       </div>
+      {/* TODO: Add narration navigation settings. */}
     </div>
   );
 };

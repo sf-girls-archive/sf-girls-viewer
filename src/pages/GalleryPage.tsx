@@ -1,147 +1,259 @@
 import "react-image-gallery/styles/css/image-gallery.css";
 
 import { useEffect, useState } from "react";
-
 import type { FC } from "react";
-import type { EntityData } from "../types";
-
-import Button from "../components/common/Button/Button";
-import { entityMapAtom } from "../atoms";
-import { FaTimes } from "react-icons/fa";
-import ReactImageGallery from "react-image-gallery";
-import { Spinner } from "../components/common/Spinner";
-import { SubFolderName } from "../types";
+import ReactImageGallery, {
+  type ReactImageGalleryItem,
+} from "react-image-gallery";
 import { useAtomValue } from "jotai";
+import { entityMapAtom } from "../atoms";
+import type { EntityData, EntityType } from "../types";
+import { SubFolderName } from "../types";
+import { Spinner } from "../components/common/Spinner";
+
+type GalleryFilter = "All" | EntityType;
+type SelectedEntity = {
+  name: string;
+  data: EntityData;
+};
+
+const filters: GalleryFilter[] = ["All", "Agents", "Seekers", "Partyrooms"];
+
+const getImages = (entity: EntityData) => [
+  ...Object.values(entity[SubFolderName.PORTRAIT] ?? {}).flat(),
+  ...Object.values(entity[SubFolderName.MINI] ?? {}).flat(),
+];
+
+const getCoverImage = (entity: EntityData) =>
+  Object.values(entity[SubFolderName.PORTRAIT] ?? {}).flat()[0] ??
+  Object.values(entity[SubFolderName.MINI] ?? {}).flat()[0];
+
+const assetUrl = (path: string) => (path.startsWith("/") ? path : `/${path}`);
 
 const GalleryPage: FC = () => {
   const entityMap = useAtomValue(entityMapAtom);
-
-  const [currentEntity, setCurrentEntity] = useState<EntityData | undefined>();
-  const [isOpen, setIsOpen] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<GalleryFilter>("All");
 
   useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
+    if (!selectedEntity) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedEntity(null);
+      }
     };
-  }, [isOpen]);
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedEntity]);
 
   if (!entityMap) {
-    return;
+    return (
+      <div className="gallery-loading">
+        <Spinner />
+        <span>Opening the cast archive...</span>
+      </div>
+    );
   }
 
-  const openModal = (entity: EntityData) => {
-    setCurrentEntity(entity);
-    setIsLoading(true);
-    setIsOpen(true);
+  const entities = Object.entries(entityMap);
+  const filterCounts: Record<GalleryFilter, number> = {
+    All: entities.length,
+    Agents: entities.filter(([, entity]) => entity.type === "Agents").length,
+    Seekers: entities.filter(([, entity]) => entity.type === "Seekers").length,
+    Partyrooms: entities.filter(([, entity]) => entity.type === "Partyrooms")
+      .length,
+  };
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleEntities = entities.filter(([name, entity]) => {
+    const matchesQuery = name.toLowerCase().includes(normalizedQuery);
+    const matchesFilter = activeFilter === "All" || entity.type === activeFilter;
+    return matchesQuery && matchesFilter;
+  });
+  const imageItems = selectedEntity
+    ? getImages(selectedEntity.data).map((path) => ({
+        original: assetUrl(path),
+        thumbnail: assetUrl(path),
+        originalAlt: `${selectedEntity.name.replace(/_/g, " ")} artwork`,
+      }))
+    : [];
+
+  const openEntity = (name: string, data: EntityData) => {
+    const images = getImages(data);
+    setIsLoading(images.length > 0);
+    setSelectedEntity({ name, data });
   };
 
-  const closeModal = () => {
-    setIsOpen(false);
-    setCurrentEntity(undefined);
-  };
-
-  const getGalleryImages = () =>
-    currentEntity
-      ? [
-          ...Object.values(currentEntity[SubFolderName.PORTRAIT] ?? {}).flat(),
-          ...Object.values(currentEntity[SubFolderName.MINI] ?? {}).flat(),
-        ].map((image) => ({
-          original: `/${image}`,
-          thumbnail: `/${image}`,
-        }))
-      : [];
-
-  const renderItem = (item: any) => (
-    <div className="gallery-image-wrap">
+  const renderItem = (item: ReactImageGalleryItem) => (
+    <div className="gallery-lightbox__image-wrap">
       <img
         src={item.original}
         alt={item.originalAlt ?? ""}
+        className="gallery-lightbox__image"
         onLoad={() => setIsLoading(false)}
         onError={() => setIsLoading(false)}
-        className="gallery-image"
         loading="lazy"
       />
     </div>
   );
 
-  const renderModal = () =>
-    isOpen && (
-      <div className="modal modal--visible" role="dialog" aria-modal="true" aria-label="Image gallery">
-        <div
-          className="modal-overlay"
-          onClick={closeModal}
-        />
-        <div className="modal-content">
-          <div className="modal-header u-flex u-center u-justify-space-between">
-            <h5 className="modal-title mb-0">Images</h5>
-            <Button className="btn btn-transparent" onClick={closeModal}>
-              <FaTimes size={16} className="u-center" />
-            </Button>
-          </div>
-          <div className="modal-body max-h-none">
-            {isLoading && <Spinner />}
-            <ReactImageGallery
-              items={getGalleryImages()}
-              renderItem={renderItem}
-              showFullscreenButton
-              showPlayButton={false}
-            />
-          </div>
-        </div>
-      </div>
-    );
-
   return (
-    <div className="container mt-10 h-100">
-      <div className="mb-6 px-5 u-flex u-center">
-        <input
-          aria-label="Filter agents"
-          placeholder="Search agents..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="gallery-search"
-        />
+    <section className="gallery-page">
+      <h1 className="sr-only">Agents</h1>
+      <div className="archive-toolbar">
+        <div className="archive-filters" role="group" aria-label="Filter by group">
+          {filters.map((filter) => (
+            <button
+              key={filter}
+              className={`filter-chip${activeFilter === filter ? " is-active" : ""}`}
+              type="button"
+              aria-pressed={activeFilter === filter}
+              onClick={() => setActiveFilter(filter)}
+            >
+              <span>{filter}</span>
+              <small>{String(filterCounts[filter]).padStart(2, "0")}</small>
+            </button>
+          ))}
+        </div>
+        <label className="archive-search">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Find an agent"
+            aria-label="Search agents"
+          />
+        </label>
       </div>
 
-      <ul className="justify-center gallery-list m-0">
-        {Object.entries(entityMap)
-          .filter(([entityKey]) =>
-            entityKey.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map(([entityKey, entity]) => {
-            const totalCount =
-              Object.values(entity.data[SubFolderName.PORTRAIT] ?? {}).flat()
-                .length +
-              Object.values(entity.data[SubFolderName.MINI] ?? {}).flat()
-                .length;
+      <div className="archive-results">
+        <span>SHOWING {String(visibleEntities.length).padStart(2, "0")}</span>
+        <span>PORTRAITS / MINIATURES / AGENTS</span>
+      </div>
+
+      {visibleEntities.length > 0 ? (
+        <ul className="cast-grid">
+          {visibleEntities.map(([name, entity], index) => {
+            const imageCount = getImages(entity.data).length;
+            const cover = getCoverImage(entity.data);
+            const displayName = name.replace(/_/g, " ");
 
             return (
-              <li
-                key={entityKey}
-                onClick={() => openModal(entity.data)}
-                className="agent-card"
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ")
-                    openModal(entity.data);
-                }}
-              >
-                <div className="agent-card-body">
-                  <div style={{ fontWeight: 600 }}>{entityKey}</div>
-                  <div style={{ fontSize: 12, color: "#666" }}>
-                    {totalCount} image{totalCount !== 1 ? "s" : ""}
-                  </div>
-                </div>
+              <li className="cast-grid__item" key={name}>
+                <button
+                  className="cast-card"
+                  type="button"
+                  onClick={() => openEntity(name, entity.data)}
+                  aria-label={`Open ${displayName} archive, ${imageCount} images`}
+                >
+                  <span className="cast-card__image">
+                    {cover ? (
+                      <img
+                        src={assetUrl(cover)}
+                        alt=""
+                        loading="lazy"
+                        className="cast-card__portrait"
+                      />
+                    ) : (
+                      <span className="cast-card__no-image">NO PORTRAIT</span>
+                    )}
+                    <span className="cast-card__serial">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="cast-card__image-count">
+                      {String(imageCount).padStart(2, "0")} FRAMES
+                    </span>
+                  </span>
+                  <span className="cast-card__details">
+                    <span className="cast-card__group">{entity.type}</span>
+                    <strong>{displayName}</strong>
+                  </span>
+                </button>
               </li>
             );
           })}
-      </ul>
-      {renderModal()}
-    </div>
+        </ul>
+      ) : (
+        <div className="archive-empty">
+          <span className="archive-empty__label">NO MATCHES</span>
+          <h2>No agents match that search.</h2>
+          <p>Try another search or choose a different group.</p>
+          <button
+            className="button button--quiet"
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setActiveFilter("All");
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+      )}
+
+      {selectedEntity && (
+        <div
+          className="gallery-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gallery-lightbox-title"
+        >
+          <button
+            className="gallery-lightbox__backdrop"
+            type="button"
+            aria-label="Close image archive"
+            onClick={() => setSelectedEntity(null)}
+          />
+          <section className="gallery-lightbox__panel">
+            <header className="gallery-lightbox__header">
+              <div>
+                <span className="eyebrow">AGENT IMAGES</span>
+                <h2 id="gallery-lightbox-title">
+                  {selectedEntity.name.replace(/_/g, " ")}
+                </h2>
+              </div>
+              <button
+                className="button button--quiet gallery-lightbox__close"
+                type="button"
+                aria-label="Close image archive"
+                onClick={() => setSelectedEntity(null)}
+              >
+                Close
+              </button>
+            </header>
+            <div className="gallery-lightbox__body">
+              {isLoading && <Spinner />}
+              {imageItems.length > 0 ? (
+                <ReactImageGallery
+                  items={imageItems}
+                  renderItem={renderItem}
+                  showFullscreenButton={false}
+                  showNav={false}
+                  showPlayButton={false}
+                />
+              ) : (
+                <p className="empty-list-note">
+                  This agent does not have any portraits yet.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+    </section>
   );
 };
 

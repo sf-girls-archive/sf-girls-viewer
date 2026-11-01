@@ -127,13 +127,13 @@ export const playFirstLive2DAnimation = (
   if (preferred) {
     try {
       animation.internalModel.motionManager.groups.idle = preferred;
-      // start the idle motion immediately
-      if (typeof (animation as any).motion === "function") {
-        (animation as any).motion(preferred);
-      }
-    } catch (e) {
-      console.warn("Failed to start Live2D idle motion:", e);
+    } catch (error) {
+      console.warn("Failed to set the Live2D idle group:", error);
     }
+
+    void animation.motion(preferred).catch((error) => {
+      console.warn("Failed to start Live2D idle motion:", error);
+    });
   }
 
   return preferred;

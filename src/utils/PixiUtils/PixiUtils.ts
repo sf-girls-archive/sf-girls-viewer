@@ -32,8 +32,11 @@ export const removeAnimation = (
 
       if (matches) {
         const container = animation.parent;
+        if (animation.meta.type === "live2d") {
+          (animation as ModifiedLive2D).automator.destroy();
+        }
         app.stage.removeChild(container);
-        container.destroy();
+        container.destroy({ children: true });
       }
 
       return !matches;

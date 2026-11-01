@@ -1,92 +1,87 @@
 import { useEffect, useState } from "react";
-import { FaGithub } from "react-icons/fa";
-import { Link, useLocation } from "react-router-dom";
-
-const menuItems = [
-  { name: "Home", href: "/" },
-  { name: "Gallery", href: "/gallery" },
-];
+import { useAtomValue } from "jotai";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { assetIndexErrorAtom, assetIndexStatusAtom } from "../../atoms";
 
 export const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const location = useLocation();
-  const pathname = location?.pathname ?? "/";
+  const { pathname } = useLocation();
+  const assetIndexStatus = useAtomValue(assetIndexStatusAtom);
+  const assetIndexError = useAtomValue(assetIndexErrorAtom);
+  const statusLabel = {
+    checking: "CHECKING ASSET INDEX",
+    online: "ASSET INDEX ONLINE",
+    offline: "ASSET INDEX OFFLINE",
+  }[assetIndexStatus];
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
-  }, [isOpen]);
+    setIsOpen(false);
+  }, [pathname]);
 
   return (
-    <div
-      id="header"
-      className="header header-animated grid-c-12 u-unselectable u-sticky u-top-0"
-    >
-      <div className="header-brand">
-        <div className="nav-item no-hover">
-          <Link to="/" onClick={() => setIsOpen(false)}>
-            <h6 className="title">SF Girls Viewer</h6>
-          </Link>
-        </div>
+    <header className="site-header">
+      <div className="site-header__inner">
+        <Link className="brand-lockup" to="/" aria-label="SF Girls Viewer">
+          <span className="brand-copy">
+            <strong>SF GIRLS</strong>
+            <small>AGENT ANIMATIONS</small>
+          </span>
+        </Link>
 
-        <div
-          className="nav-item nav-btn"
-          id="header-btn"
-          onClick={() => setIsOpen(!isOpen)}
+        <button
+          className={`mobile-nav-toggle${isOpen ? " is-open" : ""}`}
+          type="button"
+          aria-label={isOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={isOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setIsOpen((open) => !open)}
         >
-          <span />
-          <span />
-          <span />
+          {isOpen ? "Close" : "Menu"}
+        </button>
+
+        <nav
+          className={`primary-nav${isOpen ? " is-open" : ""}`}
+          id="primary-navigation"
+          aria-label="Primary navigation"
+        >
+          <NavLink to="/" end className="primary-nav__link">
+            <span>Viewer</span>
+            <small>01</small>
+          </NavLink>
+          <NavLink to="/agents" className="primary-nav__link">
+            <span>Agents</span>
+            <small>02</small>
+          </NavLink>
+        </nav>
+
+        <div className="site-header__actions">
+          <span
+            className={`asset-status asset-status--${assetIndexStatus}`}
+            role="status"
+            aria-live="polite"
+            title={assetIndexError ?? undefined}
+          >
+            <span className="status-dot" />
+            {statusLabel}
+          </span>
+          <a
+            className="header-text-link"
+            href="https://github.com/sf-girls-archive/sf-girls-viewer"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+          <a
+            className="header-text-link"
+            href="https://www.buymeacoffee.com/ox7f"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Support
+          </a>
         </div>
       </div>
-
-      <div id="header-menu" className={`header-nav ${isOpen ? "active" : ""}`}>
-        <div className="nav-left">
-          <div className="nav-item">
-            <Link
-              to="https://github.com/ox7f/sf-girls-viewer"
-              target="_blank"
-              onClick={() => setIsOpen(false)}
-            >
-              <span className="icon">
-                <FaGithub />
-              </span>
-            </Link>
-          </div>
-
-          {menuItems.map((menuItem) => (
-            <div className="nav-item" key={menuItem.name}>
-              <Link
-                to={menuItem.href}
-                onClick={() => setIsOpen(false)}
-                className={pathname === menuItem.href ? "is-active" : undefined}
-              >
-                <span>{menuItem.name}</span>
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        <div className="nav-right">
-          <div className="nav-item">
-            <Link
-              to="https://www.buymeacoffee.com/ox7f"
-              target="_blank"
-              onClick={() => setIsOpen(false)}
-            >
-              <img
-                src="/buymeacoffee.png"
-                alt="Buy Me A Coffee"
-                height={36}
-                width={130}
-              />
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
+    </header>
   );
 };

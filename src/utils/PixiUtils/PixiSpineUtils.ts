@@ -40,6 +40,7 @@ const createSpineAnimation = (data: ISkeletonData): Spine => {
 const loadAndSetupSpine = async (
   path: string,
   file: FileMeta,
+  viewport: { width: number; height: number },
   isAdditional: boolean = false,
 ): Promise<ModifiedSpine | undefined> => {
   try {
@@ -55,7 +56,7 @@ const loadAndSetupSpine = async (
       animation.meta = file;
     }
 
-    setAnimationStyle(animation);
+    setAnimationStyle(animation, viewport);
 
     return animation;
   } catch (error) {
@@ -69,7 +70,7 @@ export const addSpine = async (
 ): Promise<ModifiedSpine | undefined> => {
   try {
     const filePath = `/${file.config.fileName}`;
-    const animation = await loadAndSetupSpine(filePath, file);
+    const animation = await loadAndSetupSpine(filePath, file, app.screen);
 
     if (!animation) {
       throw new Error("Invalid Spine data for animation");
@@ -83,6 +84,7 @@ export const addSpine = async (
       const additionalAnimation = await loadAndSetupSpine(
         additionalFilePath,
         file,
+        app.screen,
         true,
       );
 
@@ -94,13 +96,13 @@ export const addSpine = async (
 
     // TODO: Yukako Playroom Skin 2 + Rei Playroom Wedding => Background/Foreground is an animation...
     if (file.config.background) {
-      addSprite(file.config.background, container);
+      addSprite(file.config.background, container, app.screen);
     }
 
     container.addChild(animation);
 
     if (file.config.foreground) {
-      addSprite(file.config.foreground, container);
+      addSprite(file.config.foreground, container, app.screen);
     }
 
     centerContainer(container, app);

@@ -47,7 +47,12 @@ const BackButton: FC = () => {
   }
 
   return (
-    <button color="primary" onClick={backOnClick} disabled={loading}>
+    <button
+      className="button button--quiet button--small"
+      type="button"
+      onClick={backOnClick}
+      disabled={loading}
+    >
       Back
     </button>
   );

@@ -1,36 +1,30 @@
 import type { FC } from "react";
-import { FaCoffee } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 export const ErrorBoundary: FC = () => {
   const navigate = useNavigate();
 
   return (
-    <main>
-      <div className="fullscreen">
-        <div className="placeholder u-overlay">
-          <div className="u-center-alt">
-            <div className="placeholder-icon">
-              <span className="icon">
-                <FaCoffee size="50" />
-              </span>
-            </div>
-
-            <h6 className="placeholder-title">Oops!</h6>
-
-            <div className="placeholder-subtitle">
-              <p>Sorry, an unexpected error has occurred.</p>
-            </div>
-
-            <div className="placeholder-commands u-center">
-              <div className="m-1" onClick={() => window.location.reload()}>
-                <button className="btn-primary">Refresh</button>
-              </div>
-              <div className="m-1" onClick={() => navigate("/")}>
-                <button className="btn-primary">Home</button>
-              </div>
-            </div>
-          </div>
+    <main className="error-page">
+      <div className="error-card">
+        <span className="eyebrow">VIEWER / ERROR</span>
+        <h1>That frame slipped.</h1>
+        <p>Something unexpected interrupted the scene. Try a fresh take.</p>
+        <div className="error-card__actions">
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => window.location.reload()}
+          >
+            Refresh scene
+          </button>
+          <button
+            className="button button--quiet"
+            type="button"
+            onClick={() => navigate("/")}
+          >
+            Back to studio
+          </button>
         </div>
       </div>
     </main>

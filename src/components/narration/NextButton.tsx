@@ -45,8 +45,8 @@ const NextButton: FC = () => {
 
   return (
     <button
-      color="btn-primary btn--sm"
-      style={{ marginBottom: "0" }}
+      className="button button--primary button--small"
+      type="button"
       onClick={nextOnClick}
       disabled={isLoading}
     >

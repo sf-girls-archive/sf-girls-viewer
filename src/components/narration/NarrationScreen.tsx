@@ -9,27 +9,20 @@ const NarrationScreen: FC = () => {
   }
 
   return (
-    <div className="u-flex u-items-center">
+    <div className="narration-line">
       {character?.icon && (
-        <div className="tile__icon">
-          <figure>
-            <img
-              style={{ maxWidth: "100px" }}
-              src={character?.icon}
-              loading="lazy"
-              alt=""
-            />
-          </figure>
-        </div>
+        <img
+          className="narration-line__portrait"
+          src={character.icon}
+          loading="lazy"
+          alt=""
+        />
       )}
-
-      <div className="tile__container">
+      <div className="narration-line__copy">
         {character && character.name && (
-          <p className="tile__title m-0 u-text-bold u-text-primary">
-            {character.name}
-          </p>
+          <strong>{character.name}</strong>
         )}
-        <p className="tile__subtitle m-0 u-text-wrap">{text}</p>
+        <p>{text}</p>
       </div>
     </div>
   );

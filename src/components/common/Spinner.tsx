@@ -1,5 +1,7 @@
 export const Spinner = () => (
-  <div className="animated loading hide-text">
-    <p>...</p>
+  <div className="loading-spinner" role="status" aria-label="Loading">
+    <span />
+    <span />
+    <span />
   </div>
 );

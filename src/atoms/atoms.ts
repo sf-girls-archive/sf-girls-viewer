@@ -28,4 +28,7 @@ export const dropdownSelectionAtom = atom<DropdownSelection>({
 });
 export const fileAtom = atom<FileMeta | null>(null);
 export const entityMapAtom = atom<EntityMap | null>(null);
+export type AssetIndexStatus = "checking" | "online" | "offline";
+export const assetIndexStatusAtom = atom<AssetIndexStatus>("checking");
+export const assetIndexErrorAtom = atom<string | null>(null);
 export const selectedMenuTabAtom = atom<string | number>(menuItems[0]);

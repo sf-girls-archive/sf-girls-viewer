@@ -1,6 +1,4 @@
 import { useAtomValue } from "jotai";
-import { FaCamera } from "react-icons/fa";
-import Button from "./Button";
 import { pixiAppAtom } from "../../../atoms";
 
 const ScreenshotButton = () => {
@@ -12,25 +10,31 @@ const ScreenshotButton = () => {
     }
 
     app.stop();
+    try {
+      const url = await app.renderer.extract.base64(app.stage);
+      const anchor = document.createElement("a");
 
-    const url = await app.renderer.extract.base64(app.stage);
-    const anchor = document.createElement("a");
-
-    document.body.append(anchor);
-    anchor.download = "screenshot";
-    anchor.href = url;
-    anchor.click();
-    anchor.remove();
-
-    app.start();
+      document.body.append(anchor);
+      anchor.download = "sf-girls-stage.png";
+      anchor.href = url;
+      anchor.click();
+      anchor.remove();
+    } finally {
+      app.start();
+    }
   };
 
   return (
-    <div className="u-absolute u-z-1 u-bottom-0 u-left-0 ml-4 mb-4">
-      <Button onClick={takeScreenshot} className="btn-light u-round-full">
-        <FaCamera size={16} className="u-center" />
-      </Button>
-    </div>
+    <button
+      className="button button--quiet stage-text-button"
+      type="button"
+      onClick={takeScreenshot}
+      disabled={!app}
+      aria-label="Save a screenshot of the stage"
+      title="Save screenshot"
+    >
+      Save
+    </button>
   );
 };
 

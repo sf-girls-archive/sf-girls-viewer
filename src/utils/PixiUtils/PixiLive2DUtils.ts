@@ -1,5 +1,8 @@
 import { Application, Ticker } from "pixi.js";
-import { Live2DModel } from "pixi-live2d-display/cubism4";
+import {
+  Live2DModel,
+  type Cubism4InternalModel,
+} from "pixi-live2d-display/cubism4";
 import {
   addSprite,
   centerContainer,
@@ -10,9 +13,27 @@ import { setupInteractionEvents } from "./PixiEventUtils";
 import { playFirstLive2DAnimation } from "./PixiAnimationUtils";
 import { FileMeta, ModifiedContainer, ModifiedLive2D } from "../../types";
 
+const ensureClippingManager = (animation: ModifiedLive2D) => {
+  const internalModel = animation.internalModel as Cubism4InternalModel;
+  const renderer = internalModel.renderer;
+
+  // pixi-live2d-display dereferences the clipping manager even when a model has no masks.
+  if (!internalModel.coreModel.isUsingMasking() && !renderer._clippingManager) {
+    renderer._clippingManager = {
+      _currentFrameNo: 0,
+      _maskTexture: undefined,
+      setGL: () => undefined,
+      setupClippingContext: () => undefined,
+      getClippingContextListForDraw: () => [],
+      release: () => undefined,
+    } as typeof renderer._clippingManager;
+  }
+};
+
 const loadAndSetupLive2D = async (
   path: string,
   file: FileMeta,
+  viewport: { width: number; height: number },
   isAdditional: boolean = false,
 ): Promise<ModifiedLive2D | undefined> => {
   try {
@@ -28,11 +49,13 @@ const loadAndSetupLive2D = async (
       throw new Error(`Invalid Live2D data at ${path}`);
     }
 
+    ensureClippingManager(animation);
+
     if (!isAdditional) {
       animation.meta = file;
     }
 
-    setAnimationStyle(animation);
+    setAnimationStyle(animation, viewport);
     playFirstLive2DAnimation(animation);
 
     return animation;
@@ -49,6 +72,7 @@ export const addLive2D = async (
     const animation = await loadAndSetupLive2D(
       `/${file.config.fileName}`,
       file,
+      app.screen,
     );
 
     if (!animation) {
@@ -59,44 +83,32 @@ export const addLive2D = async (
     app.stage.addChild(container);
 
     if (file.config.background) {
-      addSprite(file.config.background, container);
+      addSprite(file.config.background, container, app.screen);
     }
 
     container.addChild(animation);
 
     if (file.config.foreground) {
-      addSprite(file.config.foreground, container);
+      addSprite(file.config.foreground, container, app.screen);
     }
 
     centerContainer(container, app);
     setupInteractionEvents(container, animation);
 
-    // Force an initial render to ensure renderer internals (like the
-    // clipping manager used by Live2D) are initialized. Some Live2D models
-    // throw on their first update if the renderer hasn't prepared these
-    // structures yet
     try {
       app.render();
-      animation.update(0); // also trigger an update to initialize Live2D internals that run on the first update call
-      // Attempt to start the preferred idle motion after a short delay so the
-      // renderer and internal motion manager are fully ready.
-      try {
-        const preferred = playFirstLive2DAnimation(animation);
-        if (preferred) {
-          setTimeout(() => {
-            try {
-              (animation as any).motion(preferred);
-            } catch (e) {
-              console.warn("Failed to start Live2D motion:", e);
-            }
-          }, 50);
-        }
-      } catch (e) {
-        /* ignore */
-      }
-    } catch (e) {
-      // ignore render failures — the ticker will still try later
-      console.warn("Initial PIXI render failed:", e);
+      animation.update(0);
+    } catch (error) {
+      console.warn("Initial Live2D render failed:", error);
+    }
+
+    const preferred = playFirstLive2DAnimation(animation);
+    if (preferred) {
+      setTimeout(() => {
+        void animation.motion(preferred).catch((error) => {
+          console.warn("Failed to start Live2D motion:", error);
+        });
+      }, 50);
     }
 
     return animation;

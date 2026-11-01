@@ -1,15 +1,12 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
-import { type Application, Color } from "pixi.js";
+import { Color } from "pixi.js";
 import {
   fileAtom,
   pixiAnimationListAtom,
   pixiAppAtom,
   pixiAppSettingsGlobalAtom,
 } from "../atoms";
-import type { FileMeta } from "../types";
 import { initializePixiApp, addAnimation, removeAnimation } from "../utils";
 
 export const PixiViewer = () => {
@@ -18,57 +15,55 @@ export const PixiViewer = () => {
   const [app, setApp] = useAtom(pixiAppAtom);
   const appSettings = useAtomValue(pixiAppSettingsGlobalAtom);
   const [newFile, setNewFile] = useAtom(fileAtom);
-  const [animationList, setAnimationList] = useAtom(pixiAnimationListAtom);
+  const [, setAnimationList] = useAtom(pixiAnimationListAtom);
 
   useEffect(() => {
+    const container = pixiContainer.current;
     const pixiApp = initializePixiApp();
-    pixiContainer.current?.appendChild(pixiApp.view as HTMLCanvasElement);
+    const view = pixiApp.view as HTMLCanvasElement;
+    container?.appendChild(view);
     setApp(pixiApp);
 
     return () => {
-      if (app && pixiContainer.current) {
-        app.destroy(true, true);
-        pixiContainer.current.removeChild(app.view as HTMLCanvasElement);
-
-        setApp(null);
-        setAnimationList([]);
+      pixiApp.destroy(true, true);
+      if (container?.contains(view)) {
+        container.removeChild(view);
       }
+      setApp(null);
+      setAnimationList([]);
     };
-  }, []);
+  }, [setAnimationList, setApp]);
 
   useEffect(() => {
-    if (app) {
-      app.renderer.background.color = new Color(appSettings.backgroundColor);
-      app.renderer.background.alpha = appSettings.backgroundAlpha;
+    const background = app?.renderer?.background;
+    if (background) {
+      background.color = new Color(appSettings.backgroundColor);
+      background.alpha = appSettings.backgroundAlpha;
     }
   }, [app, appSettings]);
 
   useEffect(() => {
-    if (app && newFile) {
-      handleFileUpdate(app, newFile);
+    if (!app || !newFile) {
+      return;
     }
-  }, [newFile]);
 
-  const handleFileUpdate = (app: Application, file: FileMeta) => {
-    if (file.method === "add") {
-      addNewAnimation(app, file);
-    } else if (file.method === "remove") {
-      removeExistingAnimation(app, file);
-    }
-  };
+    const updateFile = async () => {
+      if (newFile.method === "add") {
+        const animation = await addAnimation(app, newFile);
+        if (animation) {
+          setAnimationList((previous) => [...previous, animation]);
+        }
+      } else {
+        setAnimationList((previous) =>
+          removeAnimation(app, newFile, previous),
+        );
+      }
 
-  const addNewAnimation = async (app: Application, file: FileMeta) => {
-    const animation = await addAnimation(app, file);
-    if (animation) {
-      setAnimationList((prev) => [...prev, animation]);
       setNewFile(null);
-    }
-  };
+    };
 
-  const removeExistingAnimation = (app: Application, file: FileMeta) => {
-    const updatedAnimations = removeAnimation(app, file, animationList);
-    setAnimationList(updatedAnimations);
-  };
+    void updateFile();
+  }, [app, newFile, setAnimationList, setNewFile]);
 
-  return <div ref={pixiContainer} />;
+  return <div ref={pixiContainer} className="pixi-canvas-host" />;
 };
