@@ -1,6 +1,6 @@
 import "react-image-gallery/styles/css/image-gallery.css";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import ReactImageGallery, {
   type ReactImageGalleryItem,
@@ -14,19 +14,34 @@ import { Spinner } from "../components/common/Spinner";
 type GalleryFilter = "All" | EntityType;
 type SelectedEntity = {
   name: string;
-  data: EntityData;
+  images: string[];
+};
+type GalleryEntry = {
+  name: string;
+  type: EntityType;
+  images: string[];
+  cover?: string;
+  coverThumbnail?: string;
 };
 
 const filters: GalleryFilter[] = ["All", "Agents", "Seekers", "Partyrooms"];
 
-const getImages = (entity: EntityData) => [
-  ...Object.values(entity[SubFolderName.PORTRAIT] ?? {}).flat(),
-  ...Object.values(entity[SubFolderName.MINI] ?? {}).flat(),
-];
+const getGalleryAssets = (name: string, entity: EntityData) => {
+  const portraits = Object.values(
+    entity[SubFolderName.PORTRAIT] ?? {},
+  ).flat();
+  const miniatures = Object.values(entity[SubFolderName.MINI] ?? {}).flat();
+  const images = [...portraits, ...miniatures];
+  const cover = portraits[0] ?? miniatures[0];
 
-const getCoverImage = (entity: EntityData) =>
-  Object.values(entity[SubFolderName.PORTRAIT] ?? {}).flat()[0] ??
-  Object.values(entity[SubFolderName.MINI] ?? {}).flat()[0];
+  return {
+    images,
+    cover,
+    coverThumbnail: cover
+      ? `/gallery-thumbnails/${encodeURIComponent(name)}.webp`
+      : undefined,
+  };
+};
 
 const assetUrl = (path: string) => (path.startsWith("/") ? path : `/${path}`);
 
@@ -40,6 +55,127 @@ const GalleryPage: FC = () => {
   const [activeFilter, setActiveFilter] = useState<GalleryFilter>("All");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const galleryRef = useRef<HTMLDivElement>(null);
+  const entities = useMemo(
+    () =>
+      Object.entries(entityMap ?? {}).map(([name, entity]) => ({
+        name,
+        type: entity.type,
+        ...getGalleryAssets(name, entity.data),
+      })),
+    [entityMap],
+  );
+  const filterCounts = useMemo(() => {
+    const counts: Record<GalleryFilter, number> = {
+      All: entities.length,
+      Agents: 0,
+      Seekers: 0,
+      Partyrooms: 0,
+    };
+
+    for (const { type } of entities) {
+      counts[type] += 1;
+    }
+
+    return counts;
+  }, [entities]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleEntities = useMemo(
+    () =>
+      entities.filter(({ name, type }) => {
+        const matchesQuery = name.toLowerCase().includes(normalizedQuery);
+        const matchesFilter = activeFilter === "All" || type === activeFilter;
+        return matchesQuery && matchesFilter;
+      }),
+    [activeFilter, entities, normalizedQuery],
+  );
+  const imageItems = useMemo(
+    () =>
+      selectedEntity
+        ? selectedEntity.images.map((path) => ({
+            original: assetUrl(path),
+            thumbnail: assetUrl(path),
+            originalAlt: `${selectedEntity.name.replace(/_/g, " ")} artwork`,
+          }))
+        : [],
+    [selectedEntity],
+  );
+  const openEntity = useCallback((entity: GalleryEntry) => {
+    setIsLoading(entity.images.length > 0);
+    setActiveImageIndex(0);
+    setSelectedEntity({
+      name: entity.name,
+      images: entity.images,
+    });
+  }, []);
+  const renderItem = useCallback(
+    (item: ReactImageGalleryItem) => (
+      <div className="gallery-lightbox__image-wrap">
+        <img
+          src={item.original}
+          alt={item.originalAlt ?? ""}
+          className="gallery-lightbox__image"
+          onLoad={() => setIsLoading(false)}
+          onError={() => setIsLoading(false)}
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+    ),
+    [],
+  );
+  const castCards = useMemo(
+    () =>
+      visibleEntities.map((entity, index) => {
+        const imageCount = entity.images.length;
+        const displayName = entity.name.replace(/_/g, " ");
+
+        return (
+          <li className="cast-grid__item" key={entity.name}>
+            <button
+              className="cast-card"
+              type="button"
+              onClick={() => openEntity(entity)}
+              aria-label={`Open ${displayName} archive, ${imageCount} images`}
+            >
+              <span className="cast-card__image">
+                {entity.cover ? (
+                  <img
+                    src={assetUrl(entity.coverThumbnail ?? entity.cover)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="cast-card__portrait"
+                  />
+                ) : (
+                  <span className="cast-card__no-image">NO PORTRAIT</span>
+                )}
+                <span className="cast-card__serial">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="cast-card__image-count">
+                  {String(imageCount).padStart(2, "0")} FRAMES
+                </span>
+              </span>
+              <span className="cast-card__details">
+                <span className="cast-card__group">{entity.type}</span>
+                <strong>{displayName}</strong>
+                <span className="cast-card__open-icon" aria-hidden="true">
+                  <svg
+                    className="ui-icon"
+                    viewBox="0 0 24 24"
+                    focusable="false"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m13 6 6 6-6 6" />
+                  </svg>
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      }),
+    [openEntity, visibleEntities],
+  );
 
   useEffect(() => {
     if (!selectedEntity) {
@@ -81,48 +217,6 @@ const GalleryPage: FC = () => {
     );
   }
 
-  const entities = Object.entries(entityMap);
-  const filterCounts: Record<GalleryFilter, number> = {
-    All: entities.length,
-    Agents: entities.filter(([, entity]) => entity.type === "Agents").length,
-    Seekers: entities.filter(([, entity]) => entity.type === "Seekers").length,
-    Partyrooms: entities.filter(([, entity]) => entity.type === "Partyrooms")
-      .length,
-  };
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleEntities = entities.filter(([name, entity]) => {
-    const matchesQuery = name.toLowerCase().includes(normalizedQuery);
-    const matchesFilter = activeFilter === "All" || entity.type === activeFilter;
-    return matchesQuery && matchesFilter;
-  });
-  const imageItems = selectedEntity
-    ? getImages(selectedEntity.data).map((path) => ({
-        original: assetUrl(path),
-        thumbnail: assetUrl(path),
-        originalAlt: `${selectedEntity.name.replace(/_/g, " ")} artwork`,
-      }))
-    : [];
-
-  const openEntity = (name: string, data: EntityData) => {
-    const images = getImages(data);
-    setIsLoading(images.length > 0);
-    setActiveImageIndex(0);
-    setSelectedEntity({ name, data });
-  };
-
-  const renderItem = (item: ReactImageGalleryItem) => (
-    <div className="gallery-lightbox__image-wrap">
-      <img
-        src={item.original}
-        alt={item.originalAlt ?? ""}
-        className="gallery-lightbox__image"
-        onLoad={() => setIsLoading(false)}
-        onError={() => setIsLoading(false)}
-        loading="lazy"
-      />
-    </div>
-  );
-
   return (
     <section className="gallery-page">
       <h1 className="sr-only">Agents</h1>
@@ -160,57 +254,7 @@ const GalleryPage: FC = () => {
       </div>
 
       {visibleEntities.length > 0 ? (
-        <ul className="cast-grid">
-          {visibleEntities.map(([name, entity], index) => {
-            const imageCount = getImages(entity.data).length;
-            const cover = getCoverImage(entity.data);
-            const displayName = name.replace(/_/g, " ");
-
-            return (
-              <li className="cast-grid__item" key={name}>
-                <button
-                  className="cast-card"
-                  type="button"
-                  onClick={() => openEntity(name, entity.data)}
-                  aria-label={`Open ${displayName} archive, ${imageCount} images`}
-                >
-                  <span className="cast-card__image">
-                    {cover ? (
-                      <img
-                        src={assetUrl(cover)}
-                        alt=""
-                        loading="lazy"
-                        className="cast-card__portrait"
-                      />
-                    ) : (
-                      <span className="cast-card__no-image">NO PORTRAIT</span>
-                    )}
-                    <span className="cast-card__serial">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span className="cast-card__image-count">
-                      {String(imageCount).padStart(2, "0")} FRAMES
-                    </span>
-                  </span>
-                  <span className="cast-card__details">
-                    <span className="cast-card__group">{entity.type}</span>
-                    <strong>{displayName}</strong>
-                    <span className="cast-card__open-icon" aria-hidden="true">
-                      <svg
-                        className="ui-icon"
-                        viewBox="0 0 24 24"
-                        focusable="false"
-                      >
-                        <path d="M5 12h14" />
-                        <path d="m13 6 6 6-6 6" />
-                      </svg>
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <ul className="cast-grid">{castCards}</ul>
       ) : (
         <div className="archive-empty">
           <span className="archive-empty__label">NO MATCHES</span>

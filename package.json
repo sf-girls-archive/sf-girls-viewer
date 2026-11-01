@@ -14,11 +14,10 @@
     "typecheck": "tsc -b",
     "format": "prettier --write .",
     "generate-entity-map": "node generate-entity-map.js",
+    "generate-gallery-thumbnails": "node scripts/generate-gallery-thumbnails.js",
     "postinstall": "git lfs install"
   },
   "dependencies": {
-    "@drincs/pixi-vn": "0.10.1",
-    "@tanstack/react-query": "5.62.15",
     "@vercel/analytics": "1.4.1",
     "gifenc": "^1.0.3",
     "jotai": "2.10.3",

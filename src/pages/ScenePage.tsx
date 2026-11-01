@@ -1,3 +1,5 @@
+import "pixi-spine";
+
 import type { FC } from "react";
 import { useState } from "react";
 import { useAtomValue } from "jotai";
@@ -52,10 +54,6 @@ const ScenePage: FC = () => {
             <PixiViewer />
             {animationList.length === 0 && (
               <div className="stage-empty-state">
-                <span
-                  className="stage-empty-state__mark"
-                  aria-hidden="true"
-                />
                 <span className="stage-empty-state__index">STAGE / 001</span>
                 <h2>No animation loaded.</h2>
                 <p>Select an agent and animation in the inspector.</p>

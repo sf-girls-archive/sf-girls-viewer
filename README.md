@@ -73,7 +73,10 @@ If you update the assets in the submodule, be sure to regenerate the entity map:
 
 ```bash
 npm run generate-entity-map
+npm run generate-gallery-thumbnails
 ```
+
+Gallery thumbnail generation requires ImageMagick 7.
 
 ## Requirements
 

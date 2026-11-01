@@ -10,6 +10,7 @@ import {
   setupInteractionEvents,
   setupSpineClickEvents,
 } from "./PixiEventUtils";
+import { findPreferredIdleAnimationName } from "./PixiAnimationUtils";
 import type { FileMeta, ModifiedContainer, ModifiedSpine } from "../../types";
 
 const createSpineAnimation = (data: ISkeletonData): Spine => {
@@ -19,12 +20,7 @@ const createSpineAnimation = (data: ISkeletonData): Spine => {
   const firstSkin = spineData.skins[1] ?? spineData.skins[0];
   const animations = spineData.animations.map((a) => a.name);
 
-  // Prefer an exact "Idle 1" animation if present, otherwise fall back
-  // to the first animation whose name contains "idle".
-  const preferredIdle =
-    animations.find((n) => n.toLowerCase() === "idle 1") ||
-    animations.find((n) => n.toLowerCase() === "idle") ||
-    animations.find((n) => n.toLowerCase().includes("idle"));
+  const preferredIdle = findPreferredIdleAnimationName(animations);
 
   if (firstSkin) {
     animation.skeleton.setSkinByName(firstSkin.name);
@@ -70,28 +66,30 @@ export const addSpine = async (
 ): Promise<ModifiedSpine | undefined> => {
   try {
     const filePath = `/${file.config.fileName}`;
-    const animation = await loadAndSetupSpine(filePath, file, app.screen);
+    const additionalAnimationPromise = file.config.addition
+      ? loadAndSetupSpine(
+          `/${file.config.addition}`,
+          file,
+          app.screen,
+          true,
+        )
+      : Promise.resolve(undefined);
+    const [animation, additionalAnimation] = await Promise.all([
+      loadAndSetupSpine(filePath, file, app.screen),
+      additionalAnimationPromise,
+    ]);
 
     if (!animation) {
+      additionalAnimation?.destroy({ children: true });
       throw new Error("Invalid Spine data for animation");
     }
 
     const container = createContainer() as ModifiedContainer;
     app.stage.addChild(container);
 
-    if (file.config.addition) {
-      const additionalFilePath = `/${file.config.addition}`;
-      const additionalAnimation = await loadAndSetupSpine(
-        additionalFilePath,
-        file,
-        app.screen,
-        true,
-      );
-
-      if (additionalAnimation) {
-        setupSpineClickEvents(container, additionalAnimation);
-        container.addChild(additionalAnimation);
-      }
+    if (additionalAnimation) {
+      setupSpineClickEvents(container, additionalAnimation);
+      container.addChild(additionalAnimation);
     }
 
     // TODO: Yukako Playroom Skin 2 + Rei Playroom Wedding => Background/Foreground is an animation...

@@ -17,6 +17,29 @@ const findAnimationByName = (
     animationName.toLowerCase().includes(name.toLowerCase()),
   );
 
+export const findPreferredIdleAnimationName = (
+  animationNames: string[],
+): string | undefined => {
+  let exactIdle: string | undefined;
+  let idleFallback: string | undefined;
+
+  for (const animationName of animationNames) {
+    const normalizedName = animationName.toLowerCase();
+
+    if (normalizedName === "idle 1") {
+      return animationName;
+    }
+
+    if (normalizedName === "idle") {
+      exactIdle ??= animationName;
+    } else if (normalizedName.includes("idle")) {
+      idleFallback ??= animationName;
+    }
+  }
+
+  return exactIdle ?? idleFallback;
+};
+
 const findIdleAnimation = (
   animationNames: string[],
   animationNumber: number | null,
@@ -118,11 +141,7 @@ export const playFirstLive2DAnimation = (
     animation.internalModel.motionManager.definitions,
   );
 
-  // Prefer exact "Idle 1", then "Idle", then any name containing "idle".
-  const preferred =
-    animationNames.find((n) => n.toLowerCase() === "idle 1") ||
-    animationNames.find((n) => n.toLowerCase() === "idle") ||
-    animationNames.find((n) => n.toLowerCase().includes("idle"));
+  const preferred = findPreferredIdleAnimationName(animationNames);
 
   if (preferred) {
     try {
