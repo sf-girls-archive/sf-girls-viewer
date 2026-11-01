@@ -2,7 +2,7 @@ import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import { Color } from "pixi.js";
 import {
-  fileAtom,
+  fileQueueAtom,
   pixiAnimationListAtom,
   pixiAppAtom,
   pixiAppSettingsGlobalAtom,
@@ -14,8 +14,9 @@ export const PixiViewer = () => {
 
   const [app, setApp] = useAtom(pixiAppAtom);
   const appSettings = useAtomValue(pixiAppSettingsGlobalAtom);
-  const [newFile, setNewFile] = useAtom(fileAtom);
+  const [fileQueue, setFileQueue] = useAtom(fileQueueAtom);
   const [, setAnimationList] = useAtom(pixiAnimationListAtom);
+  const newFile = fileQueue[0];
 
   useEffect(() => {
     const container = pixiContainer.current;
@@ -31,8 +32,9 @@ export const PixiViewer = () => {
       }
       setApp(null);
       setAnimationList([]);
+      setFileQueue([]);
     };
-  }, [setAnimationList, setApp]);
+  }, [setAnimationList, setApp, setFileQueue]);
 
   useEffect(() => {
     const background = app?.renderer?.background;
@@ -59,11 +61,13 @@ export const PixiViewer = () => {
         );
       }
 
-      setNewFile(null);
+      setFileQueue((previous) =>
+        previous[0] === newFile ? previous.slice(1) : previous,
+      );
     };
 
     void updateFile();
-  }, [app, newFile, setAnimationList, setNewFile]);
+  }, [app, newFile, setAnimationList, setFileQueue]);
 
   return <div ref={pixiContainer} className="pixi-canvas-host" />;
 };

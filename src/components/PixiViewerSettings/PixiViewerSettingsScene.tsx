@@ -1,11 +1,12 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Select from "react-select";
 import { Spinner } from "../common/Spinner";
 import {
   dropdownSelectionAtom,
   entityMapAtom,
-  fileAtom,
+  fileQueueAtom,
   pixiAnimationListAtom,
   selectedMenuTabAtom,
 } from "../../atoms";
@@ -19,7 +20,13 @@ import {
 } from "../../utils";
 
 export const PixiViewerSettingsScene = () => {
-  const [newFile, setNewFile] = useAtom(fileAtom);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedAgentParam = searchParams.get("agent");
+  const hasAgentParam = searchParams.has("agent");
+  const selectedAnimationParam = searchParams.get("animation");
+  const hasAnimationParam = searchParams.has("animation");
+
+  const [fileQueue, setFileQueue] = useAtom(fileQueueAtom);
   const [dropdownSelection, setDropdownSelection] = useAtom(
     dropdownSelectionAtom,
   );
@@ -28,13 +35,59 @@ export const PixiViewerSettingsScene = () => {
   const animationList = useAtomValue(pixiAnimationListAtom);
   const setSelectedTab = useSetAtom(selectedMenuTabAtom);
 
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoading = fileQueue.length > 0;
 
   useEffect(() => {
-    if (!newFile) {
-      setIsLoading(false);
+    if (!entityMap) {
+      return;
     }
-  }, [newFile]);
+
+    const selectedEntity =
+      getEntityOptions(entityMap)
+        .flatMap(({ options }) => options)
+        .find((option) => option.value === selectedAgentParam) ?? null;
+    const selectedScene = selectedEntity
+      ? getEntitySceneOptions(entityMap, selectedEntity.value)
+          .flatMap((group) =>
+            "options" in group ? group.options : [group],
+          )
+          .find((option) => option.value === selectedAnimationParam) ?? null
+      : null;
+
+    setDropdownSelection((previous) =>
+      previous.entity?.value === selectedEntity?.value &&
+      previous.scene?.value === selectedScene?.value
+        ? previous
+        : { entity: selectedEntity, scene: selectedScene },
+    );
+
+    if (
+      (hasAgentParam && !selectedEntity) ||
+      (hasAnimationParam && !selectedScene)
+    ) {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (hasAgentParam && !selectedEntity) {
+            next.delete("agent");
+            next.delete("animation");
+          } else if (hasAnimationParam && !selectedScene) {
+            next.delete("animation");
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [
+    entityMap,
+    hasAgentParam,
+    hasAnimationParam,
+    selectedAnimationParam,
+    selectedAgentParam,
+    setDropdownSelection,
+    setSearchParams,
+  ]);
 
   if (!entityMap) {
     return;
@@ -46,21 +99,50 @@ export const PixiViewerSettingsScene = () => {
     dropdownSelection.entity?.value,
   );
 
-  const handleEntityChange = (option: DropdownState) =>
+  const handleEntityChange = (option: DropdownState) => {
     setDropdownSelection({
       entity: option,
       scene: null,
     });
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (option) {
+        next.set("agent", option.value);
+      } else {
+        next.delete("agent");
+      }
+      next.delete("animation");
+      return next;
+    });
+  };
 
-  const handleSceneChange = (option: DropdownState) =>
+  const handleSceneChange = (option: DropdownState) => {
     setDropdownSelection((prev) => ({
       ...prev,
       scene: option,
     }));
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (option) {
+        next.set("animation", option.value);
+      } else {
+        next.delete("animation");
+      }
+      return next;
+    });
+  };
 
   const removeScene = (file: FileMeta) => {
     setSelectedTab(menuItems[0]);
-    setNewFile({ ...file, method: "remove" });
+    setFileQueue((previous) => [...previous, { ...file, method: "remove" }]);
+    setSearchParams((previous) => {
+      const stages = previous.getAll("stage");
+      stages.splice(file.index, 1);
+      const next = new URLSearchParams(previous);
+      next.delete("stage");
+      stages.forEach((stage) => next.append("stage", stage));
+      return next;
+    });
   };
 
   const loadScene = (index: number) => {
@@ -74,14 +156,22 @@ export const PixiViewerSettingsScene = () => {
     const config = getSceneData(entityMap, entity, scene);
     const isLive2D = config.fileName?.includes(".model3.json");
 
-    setNewFile({
-      config: config,
-      index,
-      method: "add",
-      name: entity,
-      type: isLive2D ? "live2d" : "spine",
+    setFileQueue((previous) => [
+      ...previous,
+      {
+        config,
+        index,
+        method: "add",
+        name: entity,
+        scene,
+        type: isLive2D ? "live2d" : "spine",
+      },
+    ]);
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.append("stage", `${entity}:${scene}`);
+      return next;
     });
-    setIsLoading(true);
   };
 
   const renderAnimationTile = (file: FileMeta) => (
@@ -114,6 +204,7 @@ export const PixiViewerSettingsScene = () => {
           aria-label={`Remove ${file.name.replace(/_/g, " ")} from stage`}
           title="Remove from stage"
           onClick={() => removeScene(file)}
+          disabled={isLoading}
         >
           Remove
         </button>

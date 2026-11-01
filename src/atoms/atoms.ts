@@ -26,7 +26,7 @@ export const dropdownSelectionAtom = atom<DropdownSelection>({
   entity: null,
   scene: null,
 });
-export const fileAtom = atom<FileMeta | null>(null);
+export const fileQueueAtom = atom<FileMeta[]>([]);
 export const entityMapAtom = atom<EntityMap | null>(null);
 export type AssetIndexStatus = "checking" | "online" | "offline";
 export const assetIndexStatusAtom = atom<AssetIndexStatus>("checking");

@@ -1,23 +1,145 @@
 import "pixi-spine";
 
 import type { FC } from "react";
-import { useState } from "react";
-import { useAtomValue } from "jotai";
-import { pixiAnimationListAtom } from "../atoms";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAtom, useAtomValue } from "jotai";
+import { useSearchParams } from "react-router-dom";
+import {
+  entityMapAtom,
+  fileQueueAtom,
+  pixiAnimationListAtom,
+  pixiAppAtom,
+} from "../atoms";
 import { PixiViewer } from "../components/PixiViewer";
 import { PixiViewerSettings } from "../components/PixiViewerSettings";
 import ScreenshotButton from "../components/common/Button/ScreenshotButton";
 import SidebarToggleButton from "../components/common/Button/SidebarToggleButton";
 import StageExportButton from "../components/common/Button/StageExportButton";
+import type { EntityMap, FileMeta } from "../types";
+import {
+  getEntitySceneOptions,
+  getSceneData,
+} from "../utils";
+
+const getSceneOptions = (entityMap: EntityMap, agent: string) =>
+  getEntitySceneOptions(entityMap, agent).flatMap((group) =>
+    "options" in group ? group.options : [group],
+  );
+
+const parseStageParam = (value: string) => {
+  const separator = value.indexOf(":");
+  if (separator <= 0 || separator === value.length - 1) {
+    return null;
+  }
+
+  return {
+    agent: value.slice(0, separator),
+    animation: value.slice(separator + 1),
+  };
+};
 
 const ScenePage: FC = () => {
   const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [fileQueue, setFileQueue] = useAtom(fileQueueAtom);
+  const entityMap = useAtomValue(entityMapAtom);
+  const pixiApp = useAtomValue(pixiAppAtom);
   const animationList = useAtomValue(pixiAnimationListAtom);
+  const stageParams = useMemo(
+    () => searchParams.getAll("stage"),
+    [searchParams],
+  );
+  const stageKey = JSON.stringify(stageParams);
+  const lastRestoredStageKey = useRef<string | null>(null);
   const activeAnimation = animationList[animationList.length - 1];
   const rendererLabels = Array.from(
     new Set(animationList.map((animation) => animation.meta.type)),
   ).map((type) => type.toUpperCase());
   const rendererLabel = rendererLabels.join(" + ") || "NO AGENT";
+
+  useEffect(() => {
+    if (
+      !entityMap ||
+      !pixiApp ||
+      fileQueue.length > 0 ||
+      lastRestoredStageKey.current === stageKey
+    ) {
+      return;
+    }
+
+    const restoredEntries = stageParams.flatMap((stageParam) => {
+      const entry = parseStageParam(stageParam);
+      if (
+        !entry ||
+        !getSceneOptions(entityMap, entry.agent).some(
+          (option) => option.value === entry.animation,
+        )
+      ) {
+        return [];
+      }
+
+      return [entry];
+    });
+    const restoredFiles: FileMeta[] = restoredEntries.map(
+      ({ agent, animation }, index) => {
+        const config = getSceneData(entityMap, agent, animation);
+        return {
+          config,
+          index,
+          method: "add",
+          name: agent,
+          scene: animation,
+          type: config.fileName?.includes(".model3.json")
+            ? "live2d"
+            : "spine",
+        };
+      },
+    );
+    const normalizedStageParams = restoredEntries.map(
+      ({ agent, animation }) => `${agent}:${animation}`,
+    );
+
+    lastRestoredStageKey.current = stageKey;
+
+    if (JSON.stringify(stageParams) !== JSON.stringify(normalizedStageParams)) {
+      setSearchParams(
+        (previous) => {
+          if (JSON.stringify(previous.getAll("stage")) !== stageKey) {
+            return previous;
+          }
+
+          const next = new URLSearchParams(previous);
+          next.delete("stage");
+          normalizedStageParams.forEach((stage) => next.append("stage", stage));
+          return next;
+        },
+        { replace: true },
+      );
+    }
+
+    const currentStage = animationList.map(({ meta }) =>
+      `${meta.name}:${meta.scene}`,
+    );
+    if (
+      JSON.stringify(currentStage) === JSON.stringify(normalizedStageParams)
+    ) {
+      return;
+    }
+
+    const removeFiles = [...animationList]
+      .reverse()
+      .map(({ meta }) => ({ ...meta, method: "remove" as const }));
+    setFileQueue([...removeFiles, ...restoredFiles]);
+  }, [
+    animationList,
+    entityMap,
+    fileQueue.length,
+    pixiApp,
+    setFileQueue,
+    setSearchParams,
+    stageKey,
+    stageParams,
+  ]);
 
   return (
     <section className="studio-page">

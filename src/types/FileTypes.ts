@@ -5,6 +5,7 @@ export type FileMeta = {
   index: number;
   method: "add" | "remove";
   name: string;
+  scene: string;
   type: FileType;
 };
 
