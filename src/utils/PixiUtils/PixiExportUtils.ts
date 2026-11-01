@@ -2,9 +2,18 @@ import { Rectangle, type Application } from "pixi.js";
 import type { GifWriteFrameOptions } from "gifenc";
 
 export const STAGE_EXPORT_DURATION_SECONDS = 5;
+export const DEFAULT_GIF_FRAME_RATE = 12;
+export const DEFAULT_VIDEO_FRAME_RATE = 30;
 
-const GIF_FRAME_RATE = 12;
-const VIDEO_FRAME_RATE = 30;
+export type StageExportResolution = "original" | "720" | "1080";
+export type StageExportFrameRate = 12 | 24 | 30;
+export type StageExportDuration = 5 | 10 | 15;
+export type StageExportOptions = {
+  resolution: StageExportResolution;
+  frameRate: StageExportFrameRate;
+  durationSeconds: StageExportDuration;
+};
+
 const VIDEO_FORMATS = [
   {
     format: "mp4",
@@ -24,6 +33,17 @@ export type SupportedVideoFormat = {
   mimeType: string;
 };
 
+const DEFAULT_GIF_OPTIONS: StageExportOptions = {
+  resolution: "original",
+  frameRate: DEFAULT_GIF_FRAME_RATE,
+  durationSeconds: STAGE_EXPORT_DURATION_SECONDS,
+};
+const DEFAULT_VIDEO_OPTIONS: StageExportOptions = {
+  resolution: "original",
+  frameRate: DEFAULT_VIDEO_FRAME_RATE,
+  durationSeconds: STAGE_EXPORT_DURATION_SECONDS,
+};
+
 const getStageBackgroundColor = (app: Application) => {
   const stageCanvas = app.renderer.view as HTMLCanvasElement;
   const stageSurface = stageCanvas.closest(".stage-viewport");
@@ -41,11 +61,35 @@ const getStageCanvas = (app: Application) => {
   return app.renderer.extract.canvas(app.stage, frame);
 };
 
-const getStagePixels = (app: Application) => {
+export const getStageExportDimensions = (
+  sourceWidth: number,
+  sourceHeight: number,
+  resolution: StageExportResolution,
+) => {
+  if (resolution === "original" || sourceWidth <= 0 || sourceHeight <= 0) {
+    return { width: sourceWidth, height: sourceHeight };
+  }
+
+  const height = resolution === "720" ? 720 : 1080;
+  return {
+    width: Math.round((sourceWidth * height) / sourceHeight),
+    height,
+  };
+};
+
+const getStagePixels = (
+  app: Application,
+  resolution: StageExportResolution,
+) => {
   const extractedCanvas = getStageCanvas(app);
+  const dimensions = getStageExportDimensions(
+    extractedCanvas.width,
+    extractedCanvas.height,
+    resolution,
+  );
   const canvas = document.createElement("canvas");
-  canvas.width = extractedCanvas.width;
-  canvas.height = extractedCanvas.height;
+  canvas.width = dimensions.width;
+  canvas.height = dimensions.height;
 
   const context = canvas.getContext("2d", {
     alpha: false,
@@ -57,7 +101,13 @@ const getStagePixels = (app: Application) => {
 
   context.fillStyle = getStageBackgroundColor(app);
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(extractedCanvas as HTMLCanvasElement, 0, 0);
+  context.drawImage(
+    extractedCanvas as HTMLCanvasElement,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
 
   return {
     imageData: context.getImageData(0, 0, canvas.width, canvas.height),
@@ -72,13 +122,14 @@ const wait = (milliseconds: number) =>
 export const exportStageGif = async (
   app: Application,
   onProgress: ExportProgress,
+  options: StageExportOptions = DEFAULT_GIF_OPTIONS,
 ): Promise<Blob> => {
   const { applyPalette, GIFEncoder, quantize } = await import("gifenc");
   const encoder = GIFEncoder();
-  const frameCount = GIF_FRAME_RATE * STAGE_EXPORT_DURATION_SECONDS;
-  const frameDelay = Math.round(1000 / GIF_FRAME_RATE);
+  const frameCount = options.frameRate * options.durationSeconds;
+  const frameDelay = Math.round(1000 / options.frameRate);
   const startTime = performance.now();
-  const firstFrame = getStagePixels(app);
+  const firstFrame = getStagePixels(app, options.resolution);
   const palette = quantize(firstFrame.imageData.data, 256);
 
   const writeFrame = (
@@ -115,7 +166,7 @@ export const exportStageGif = async (
       await wait(timeUntilFrame);
     }
 
-    const frame = getStagePixels(app);
+    const frame = getStagePixels(app, options.resolution);
     if (
       frame.width !== firstFrame.width ||
       frame.height !== firstFrame.height
@@ -154,6 +205,7 @@ export const getSupportedVideoFormat = (): SupportedVideoFormat | null => {
 export const exportStageVideo = (
   app: Application,
   onProgress: ExportProgress,
+  options: StageExportOptions = DEFAULT_VIDEO_OPTIONS,
 ): Promise<{ blob: Blob; format: VideoExportFormat }> => {
   const videoFormat = getSupportedVideoFormat();
   if (!videoFormat) {
@@ -169,7 +221,7 @@ export const exportStageVideo = (
     );
   }
 
-  const firstFrame = getStagePixels(app);
+  const firstFrame = getStagePixels(app, options.resolution);
   const recordingCanvas = document.createElement("canvas");
   recordingCanvas.width = firstFrame.width;
   recordingCanvas.height = firstFrame.height;
@@ -179,7 +231,7 @@ export const exportStageVideo = (
     return Promise.reject(new Error("Could not prepare the video canvas."));
   }
 
-  const drawStage = (frame = getStagePixels(app)) => {
+  const drawStage = (frame: ReturnType<typeof getStagePixels>) => {
     if (
       frame.width !== recordingCanvas.width ||
       frame.height !== recordingCanvas.height
@@ -191,7 +243,7 @@ export const exportStageVideo = (
   };
 
   drawStage(firstFrame);
-  const stream = recordingCanvas.captureStream(VIDEO_FRAME_RATE);
+  const stream = recordingCanvas.captureStream(options.frameRate);
 
   return new Promise<{ blob: Blob; format: VideoExportFormat }>(
     (resolve, reject) => {
@@ -251,7 +303,8 @@ export const exportStageVideo = (
 
       recorder.addEventListener(
         "error",
-        () => fail(new Error("The browser could not record the stage as MP4.")),
+        () =>
+          fail(new Error("The browser could not record the stage as video.")),
         { once: true },
       );
 
@@ -286,7 +339,7 @@ export const exportStageVideo = (
         startedAt = performance.now();
         drawTimer = window.setInterval(() => {
           try {
-            drawStage();
+            drawStage(getStagePixels(app, options.resolution));
           } catch (error) {
             fail(
               error instanceof Error
@@ -294,13 +347,13 @@ export const exportStageVideo = (
                 : new Error("Could not capture the stage frame."),
             );
           }
-        }, 1000 / VIDEO_FRAME_RATE);
+        }, 1000 / options.frameRate);
         progressTimer = window.setInterval(() => {
           onProgress(
             Math.min(
               1,
               (performance.now() - startedAt) /
-                (STAGE_EXPORT_DURATION_SECONDS * 1000),
+                (options.durationSeconds * 1000),
             ),
           );
         }, 100);
@@ -308,7 +361,7 @@ export const exportStageVideo = (
           if (recorder.state === "recording") {
             recorder.stop();
           }
-        }, STAGE_EXPORT_DURATION_SECONDS * 1000);
+        }, options.durationSeconds * 1000);
       } catch (error) {
         fail(
           error instanceof Error

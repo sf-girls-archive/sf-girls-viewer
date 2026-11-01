@@ -2,13 +2,51 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { pixiAnimationListAtom, pixiAppAtom } from "../../../atoms";
 import {
+  DEFAULT_GIF_FRAME_RATE,
+  DEFAULT_VIDEO_FRAME_RATE,
   exportStageGif,
   exportStageVideo,
+  getStageExportDimensions,
   getSupportedVideoFormat,
   STAGE_EXPORT_DURATION_SECONDS,
+  type StageExportDuration,
+  type StageExportFrameRate,
+  type StageExportOptions,
+  type StageExportResolution,
 } from "../../../utils";
 
 type ExportFormat = "gif" | "video";
+type FrameRateSelection = "format-default" | StageExportFrameRate;
+
+const parseFrameRateSelection = (value: string): FrameRateSelection => {
+  if (value === "12") {
+    return 12;
+  }
+  if (value === "24") {
+    return 24;
+  }
+  if (value === "30") {
+    return 30;
+  }
+  return "format-default";
+};
+
+const parseDuration = (value: string): StageExportDuration => {
+  if (value === "10") {
+    return 10;
+  }
+  if (value === "15") {
+    return 15;
+  }
+  return STAGE_EXPORT_DURATION_SECONDS;
+};
+
+const parseResolution = (value: string): StageExportResolution => {
+  if (value === "720" || value === "1080") {
+    return value;
+  }
+  return "original";
+};
 
 const downloadBlob = (blob: Blob, fileName: string) => {
   const url = URL.createObjectURL(blob);
@@ -30,11 +68,22 @@ const StageExportButton = () => {
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
     null,
   );
+  const [resolution, setResolution] =
+    useState<StageExportResolution>("original");
+  const [frameRate, setFrameRate] =
+    useState<FrameRateSelection>("format-default");
+  const [durationSeconds, setDurationSeconds] = useState<StageExportDuration>(
+    STAGE_EXPORT_DURATION_SECONDS,
+  );
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const videoFormat = getSupportedVideoFormat();
   const videoFormatLabel = videoFormat?.format.toUpperCase() ?? "Video";
+  const gifFrameRate =
+    frameRate === "format-default" ? DEFAULT_GIF_FRAME_RATE : frameRate;
+  const videoFrameRate =
+    frameRate === "format-default" ? DEFAULT_VIDEO_FRAME_RATE : frameRate;
   const canExportVideo =
     videoFormat !== null &&
     typeof HTMLCanvasElement !== "undefined" &&
@@ -70,13 +119,18 @@ const StageExportButton = () => {
     setErrorMessage(null);
 
     try {
+      const options: StageExportOptions = {
+        resolution,
+        frameRate: format === "gif" ? gifFrameRate : videoFrameRate,
+        durationSeconds,
+      };
       let blob: Blob;
       let outputFormat: string;
       if (format === "gif") {
-        blob = await exportStageGif(app, setProgress);
+        blob = await exportStageGif(app, setProgress, options);
         outputFormat = "gif";
       } else {
-        const video = await exportStageVideo(app, setProgress);
+        const video = await exportStageVideo(app, setProgress, options);
         blob = video.blob;
         outputFormat = video.format;
       }
@@ -99,8 +153,18 @@ const StageExportButton = () => {
 
   const isExporting = exportingFormat !== null;
   const animationCount = animationList.length;
-  const stageWidth = Math.round(app?.screen.width ?? 0);
-  const stageHeight = Math.round(app?.screen.height ?? 0);
+  const stageCanvas = app?.renderer.view as HTMLCanvasElement | undefined;
+  const sourceWidth = stageCanvas?.width ?? 0;
+  const sourceHeight = stageCanvas?.height ?? 0;
+  const exportDimensions = getStageExportDimensions(
+    sourceWidth,
+    sourceHeight,
+    resolution,
+  );
+  const frameRateSummary =
+    frameRate === "format-default"
+      ? `${DEFAULT_GIF_FRAME_RATE} GIF / ${DEFAULT_VIDEO_FRAME_RATE} video FPS`
+      : `${frameRate} FPS`;
 
   return (
     <>
@@ -167,8 +231,9 @@ const StageExportButton = () => {
 
           <p className="export-dialog__summary">
             {animationCount} {animationCount === 1 ? "animation" : "animations"}{" "}
-            <span>/</span> {stageWidth} × {stageHeight} <span>/</span>{" "}
-            {STAGE_EXPORT_DURATION_SECONDS} seconds
+            <span>/</span> {exportDimensions.width} × {exportDimensions.height}{" "}
+            <span>/</span> {frameRateSummary} <span>/</span> {durationSeconds}{" "}
+            seconds
           </p>
           <p
             className="export-dialog__description"
@@ -176,6 +241,62 @@ const StageExportButton = () => {
           >
             The full canvas and everything currently on stage are included.
             Preview labels and controls stay out of the file.
+          </p>
+
+          <div className="export-dialog__settings">
+            <label className="export-dialog__setting">
+              <span>Resolution</span>
+              <select
+                value={resolution}
+                disabled={isExporting}
+                onChange={(event) =>
+                  setResolution(parseResolution(event.currentTarget.value))
+                }
+              >
+                <option value="original">
+                  Original ({sourceWidth} × {sourceHeight})
+                </option>
+                <option value="720">720 px high</option>
+                <option value="1080">1080 px high</option>
+              </select>
+            </label>
+
+            <label className="export-dialog__setting">
+              <span>Frame rate</span>
+              <select
+                value={frameRate}
+                disabled={isExporting}
+                onChange={(event) =>
+                  setFrameRate(
+                    parseFrameRateSelection(event.currentTarget.value),
+                  )
+                }
+              >
+                <option value="format-default">Format default</option>
+                <option value="12">12 FPS</option>
+                <option value="24">24 FPS</option>
+                <option value="30">30 FPS</option>
+              </select>
+            </label>
+
+            <label className="export-dialog__setting">
+              <span>Duration</span>
+              <select
+                value={durationSeconds}
+                disabled={isExporting}
+                onChange={(event) =>
+                  setDurationSeconds(parseDuration(event.currentTarget.value))
+                }
+              >
+                <option value={5}>5 seconds</option>
+                <option value={10}>10 seconds</option>
+                <option value={15}>15 seconds</option>
+              </select>
+            </label>
+          </div>
+          <p className="export-dialog__settings-note">
+            GIF frame timing uses 10 ms increments, so its playback rate is
+            approximate.
           </p>
 
           <div className="export-dialog__formats">
@@ -192,7 +313,10 @@ const StageExportButton = () => {
                 <strong>
                   {exportingFormat === "gif" ? "Building GIF…" : "Animated GIF"}
                 </strong>
-                <small>12 frames/sec · loops forever</small>
+                <small>
+                  {gifFrameRate} FPS · {durationSeconds}-second loop · loops
+                  forever
+                </small>
               </span>
               <span className="export-format-option__arrow" aria-hidden="true">
                 ↗
@@ -208,7 +332,7 @@ const StageExportButton = () => {
               disabled={isExporting || !canExportVideo}
               title={
                 canExportVideo
-                  ? `Export a five-second ${videoFormatLabel}`
+                  ? `Export a ${durationSeconds}-second ${videoFormatLabel}`
                   : "Video recording is not supported by this browser"
               }
             >
@@ -221,7 +345,9 @@ const StageExportButton = () => {
                     ? `Recording ${videoFormatLabel}…`
                     : `${videoFormatLabel} video`}
                 </strong>
-                <small>30 frames/sec · five-second clip</small>
+                <small>
+                  {videoFrameRate} FPS · {durationSeconds}-second clip
+                </small>
               </span>
               <span className="export-format-option__arrow" aria-hidden="true">
                 ↗
