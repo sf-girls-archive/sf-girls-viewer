@@ -1,5 +1,6 @@
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import Select from "react-select";
 import { pixiAnimationListAtom, pixiAppAtom } from "../../../atoms";
 import {
   DEFAULT_GIF_FRAME_RATE,
@@ -17,35 +18,9 @@ import {
 
 type ExportFormat = "gif" | "video";
 type FrameRateSelection = "format-default" | StageExportFrameRate;
-
-const parseFrameRateSelection = (value: string): FrameRateSelection => {
-  if (value === "12") {
-    return 12;
-  }
-  if (value === "24") {
-    return 24;
-  }
-  if (value === "30") {
-    return 30;
-  }
-  return "format-default";
-};
-
-const parseDuration = (value: string): StageExportDuration => {
-  if (value === "10") {
-    return 10;
-  }
-  if (value === "15") {
-    return 15;
-  }
-  return STAGE_EXPORT_DURATION_SECONDS;
-};
-
-const parseResolution = (value: string): StageExportResolution => {
-  if (value === "720" || value === "1080") {
-    return value;
-  }
-  return "original";
+type ExportSelectOption<Value extends string | number> = {
+  value: Value;
+  label: string;
 };
 
 const downloadBlob = (blob: Blob, fileName: string) => {
@@ -63,7 +38,9 @@ const downloadBlob = (blob: Blob, fileName: string) => {
 const StageExportButton = () => {
   const app = useAtomValue(pixiAppAtom);
   const animationList = useAtomValue(pixiAnimationListAtom);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [dialogElement, setDialogElement] = useState<HTMLDialogElement | null>(
+    null,
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
     null,
@@ -88,19 +65,17 @@ const StageExportButton = () => {
     videoFormat !== null &&
     typeof HTMLCanvasElement !== "undefined" &&
     typeof HTMLCanvasElement.prototype.captureStream === "function";
-
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) {
+    if (!dialogElement) {
       return;
     }
 
-    if (isOpen && !dialog.open) {
-      dialog.showModal();
-    } else if (!isOpen && dialog.open) {
-      dialog.close();
+    if (isOpen && !dialogElement.open) {
+      dialogElement.showModal();
+    } else if (!isOpen && dialogElement.open) {
+      dialogElement.close();
     }
-  }, [isOpen]);
+  }, [dialogElement, isOpen]);
 
   const closeDialog = () => {
     if (!exportingFormat) {
@@ -156,6 +131,25 @@ const StageExportButton = () => {
   const stageCanvas = app?.renderer.view as HTMLCanvasElement | undefined;
   const sourceWidth = stageCanvas?.width ?? 0;
   const sourceHeight = stageCanvas?.height ?? 0;
+  const resolutionOptions: ExportSelectOption<StageExportResolution>[] = [
+    {
+      value: "original",
+      label: `Original (${sourceWidth} × ${sourceHeight})`,
+    },
+    { value: "720", label: "720 px high" },
+    { value: "1080", label: "1080 px high" },
+  ];
+  const frameRateOptions: ExportSelectOption<FrameRateSelection>[] = [
+    { value: "format-default", label: "Format default" },
+    { value: 12, label: "12 FPS" },
+    { value: 24, label: "24 FPS" },
+    { value: 30, label: "30 FPS" },
+  ];
+  const durationOptions: ExportSelectOption<StageExportDuration>[] = [
+    { value: 5, label: "5 seconds" },
+    { value: 10, label: "10 seconds" },
+    { value: 15, label: "15 seconds" },
+  ];
   const exportDimensions = getStageExportDimensions(
     sourceWidth,
     sourceHeight,
@@ -192,7 +186,7 @@ const StageExportButton = () => {
       </button>
 
       <dialog
-        ref={dialogRef}
+        ref={setDialogElement}
         className="export-dialog"
         aria-labelledby="stage-export-title"
         aria-describedby="stage-export-description"
@@ -246,52 +240,77 @@ const StageExportButton = () => {
           <div className="export-dialog__settings">
             <label className="export-dialog__setting">
               <span>Resolution</span>
-              <select
-                value={resolution}
-                disabled={isExporting}
-                onChange={(event) =>
-                  setResolution(parseResolution(event.currentTarget.value))
+              <Select<ExportSelectOption<StageExportResolution>, false>
+                aria-label="Resolution"
+                classNamePrefix="studio-select"
+                components={{ IndicatorSeparator: null }}
+                isDisabled={isExporting}
+                isSearchable={false}
+                menuPlacement="auto"
+                menuPortalTarget={dialogElement ?? undefined}
+                menuPosition="fixed"
+                onChange={(option) => {
+                  if (option) {
+                    setResolution(option.value);
+                  }
+                }}
+                options={resolutionOptions}
+                value={
+                  resolutionOptions.find(
+                    (option) => option.value === resolution,
+                  ) ?? null
                 }
-              >
-                <option value="original">
-                  Original ({sourceWidth} × {sourceHeight})
-                </option>
-                <option value="720">720 px high</option>
-                <option value="1080">1080 px high</option>
-              </select>
+              />
             </label>
 
             <label className="export-dialog__setting">
               <span>Frame rate</span>
-              <select
-                value={frameRate}
-                disabled={isExporting}
-                onChange={(event) =>
-                  setFrameRate(
-                    parseFrameRateSelection(event.currentTarget.value),
-                  )
+              <Select<ExportSelectOption<FrameRateSelection>, false>
+                aria-label="Frame rate"
+                classNamePrefix="studio-select"
+                components={{ IndicatorSeparator: null }}
+                isDisabled={isExporting}
+                isSearchable={false}
+                menuPlacement="auto"
+                menuPortalTarget={dialogElement ?? undefined}
+                menuPosition="fixed"
+                onChange={(option) => {
+                  if (option) {
+                    setFrameRate(option.value);
+                  }
+                }}
+                options={frameRateOptions}
+                value={
+                  frameRateOptions.find(
+                    (option) => option.value === frameRate,
+                  ) ?? null
                 }
-              >
-                <option value="format-default">Format default</option>
-                <option value="12">12 FPS</option>
-                <option value="24">24 FPS</option>
-                <option value="30">30 FPS</option>
-              </select>
+              />
             </label>
 
             <label className="export-dialog__setting">
               <span>Duration</span>
-              <select
-                value={durationSeconds}
-                disabled={isExporting}
-                onChange={(event) =>
-                  setDurationSeconds(parseDuration(event.currentTarget.value))
+              <Select<ExportSelectOption<StageExportDuration>, false>
+                aria-label="Duration"
+                classNamePrefix="studio-select"
+                components={{ IndicatorSeparator: null }}
+                isDisabled={isExporting}
+                isSearchable={false}
+                menuPlacement="auto"
+                menuPortalTarget={dialogElement ?? undefined}
+                menuPosition="fixed"
+                onChange={(option) => {
+                  if (option) {
+                    setDurationSeconds(option.value);
+                  }
+                }}
+                options={durationOptions}
+                value={
+                  durationOptions.find(
+                    (option) => option.value === durationSeconds,
+                  ) ?? null
                 }
-              >
-                <option value={5}>5 seconds</option>
-                <option value={10}>10 seconds</option>
-                <option value={15}>15 seconds</option>
-              </select>
+              />
             </label>
           </div>
           <p className="export-dialog__settings-note">

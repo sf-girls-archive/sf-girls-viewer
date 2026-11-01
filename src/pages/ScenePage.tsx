@@ -9,6 +9,7 @@ import {
   fileQueueAtom,
   pixiAnimationListAtom,
   pixiAppAtom,
+  selectedMenuTabAtom,
 } from "../atoms";
 import { PixiViewer } from "../components/PixiViewer";
 import { PixiViewerSettings } from "../components/PixiViewerSettings";
@@ -46,6 +47,7 @@ const ScenePage: FC = () => {
   const entityMap = useAtomValue(entityMapAtom);
   const pixiApp = useAtomValue(pixiAppAtom);
   const animationList = useAtomValue(pixiAnimationListAtom);
+  const selectedMenuTab = useAtomValue(selectedMenuTabAtom);
   const stageParams = useMemo(
     () => searchParams.getAll("stage"),
     [searchParams],
@@ -187,7 +189,7 @@ const ScenePage: FC = () => {
     <section className="studio-page">
       <h1 className="sr-only">Animation viewer</h1>
       <div
-        className={`studio-workspace${isInspectorOpen ? "" : " studio-workspace--wide"}`}
+        className={`studio-workspace${isInspectorOpen ? "" : " studio-workspace--wide"}${isInspectorOpen && typeof selectedMenuTab === "number" ? " studio-workspace--adjusting" : ""}`}
       >
         <section className="stage-panel" aria-label="Animation preview stage">
           <div className="stage-panel__header">
