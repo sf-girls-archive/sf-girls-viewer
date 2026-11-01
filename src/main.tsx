@@ -1,6 +1,6 @@
 import "./index.css";
 
-import "cirrus-ui";
+import "./vendor/cirrus-ui.min.css";
 import "pixi-spine";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

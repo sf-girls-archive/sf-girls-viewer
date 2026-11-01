@@ -2,7 +2,7 @@
 
 # Inject token into submodule URL
 echo "Injecting token into submodule URL..."
-git config -f .gitmodules submodule.public/sf-girls-assets.url https://$GIT_TOKEN@github.com/ox7f/sf-girls-assets.git
+git config -f .gitmodules submodule.public/sf-girls-assets.url https://$GIT_TOKEN@github.com/sf-girls-archive/sf-girls-assets.git
 
 git submodule sync
 git submodule update --init --recursive

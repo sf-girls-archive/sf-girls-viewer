@@ -18,7 +18,7 @@ The **SF-Girls Viewer** is a web-based tool that allows players to explore in-ga
 1. Clone this repository (with submodules):
 
    ```bash
-   git clone --recurse-submodules https://github.com/ox7f/sf-girls-viewer
+   git clone --recurse-submodules https://github.com/sf-girls-archive/sf-girls-viewer
    ```
 
    > If you already cloned the repo without `--recurse-submodules`, initialize the submodule manually:
