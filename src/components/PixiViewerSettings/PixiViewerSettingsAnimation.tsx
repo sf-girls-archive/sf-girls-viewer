@@ -235,8 +235,17 @@ export const PixiViewerSettingsAnimation = ({
           type="button"
           onClick={() => setSelectedTab(menuItems[0])}
           aria-label="Back to scene controls"
+          title="Back to scene controls"
         >
-          Back
+          <svg
+            className="ui-icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M19 12H5" />
+            <path d="m12 19-7-7 7-7" />
+          </svg>
         </button>
         <div className="selected-subject__copy">
           <span className="eyebrow">SELECTED AGENT</span>

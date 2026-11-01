@@ -6,11 +6,16 @@ import { PixiViewer } from "../components/PixiViewer";
 import { PixiViewerSettings } from "../components/PixiViewerSettings";
 import ScreenshotButton from "../components/common/Button/ScreenshotButton";
 import SidebarToggleButton from "../components/common/Button/SidebarToggleButton";
+import StageExportButton from "../components/common/Button/StageExportButton";
 
 const ScenePage: FC = () => {
   const [isInspectorOpen, setIsInspectorOpen] = useState(true);
   const animationList = useAtomValue(pixiAnimationListAtom);
   const activeAnimation = animationList[animationList.length - 1];
+  const rendererLabels = Array.from(
+    new Set(animationList.map((animation) => animation.meta.type)),
+  ).map((type) => type.toUpperCase());
+  const rendererLabel = rendererLabels.join(" + ") || "NO AGENT";
 
   return (
     <section className="studio-page">
@@ -28,15 +33,12 @@ const ScenePage: FC = () => {
             </div>
             <div className="stage-actions">
               <span
-                className={`renderer-badge${activeAnimation ? " is-active" : ""}`}
+                className={`renderer-badge${rendererLabels.length > 0 ? " is-active" : ""}`}
               >
-                {activeAnimation
-                  ? activeAnimation.meta.type === "live2d"
-                    ? "LIVE2D"
-                    : "SPINE"
-                  : "NO AGENT"}
+                {rendererLabel}
               </span>
               <ScreenshotButton />
+              <StageExportButton />
               <SidebarToggleButton
                 isOpen={isInspectorOpen}
                 onClick={() => setIsInspectorOpen((open) => !open)}
@@ -44,10 +46,16 @@ const ScenePage: FC = () => {
             </div>
           </div>
 
-          <div className="stage-viewport">
+          <div
+            className={`stage-viewport${animationList.length === 0 ? " stage-viewport--empty" : ""}`}
+          >
             <PixiViewer />
             {animationList.length === 0 && (
               <div className="stage-empty-state">
+                <span
+                  className="stage-empty-state__mark"
+                  aria-hidden="true"
+                />
                 <span className="stage-empty-state__index">STAGE / 001</span>
                 <h2>No animation loaded.</h2>
                 <p>Select an agent and animation in the inspector.</p>

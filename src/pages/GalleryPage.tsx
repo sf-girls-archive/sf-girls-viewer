@@ -1,6 +1,6 @@
 import "react-image-gallery/styles/css/image-gallery.css";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FC } from "react";
 import ReactImageGallery, {
   type ReactImageGalleryItem,
@@ -38,6 +38,8 @@ const GalleryPage: FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<GalleryFilter>("All");
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const galleryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!selectedEntity) {
@@ -59,6 +61,16 @@ const GalleryPage: FC = () => {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [selectedEntity]);
+
+  useEffect(() => {
+    if (!selectedEntity) {
+      return;
+    }
+
+    galleryRef.current
+      ?.querySelector<HTMLButtonElement>(".image-gallery-thumbnail.active")
+      ?.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+  }, [activeImageIndex, selectedEntity]);
 
   if (!entityMap) {
     return (
@@ -94,6 +106,7 @@ const GalleryPage: FC = () => {
   const openEntity = (name: string, data: EntityData) => {
     const images = getImages(data);
     setIsLoading(images.length > 0);
+    setActiveImageIndex(0);
     setSelectedEntity({ name, data });
   };
 
@@ -133,15 +146,17 @@ const GalleryPage: FC = () => {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find an agent"
-            aria-label="Search agents"
+            placeholder="Find a character"
+            aria-label="Search characters"
           />
         </label>
       </div>
 
       <div className="archive-results">
-        <span>SHOWING {String(visibleEntities.length).padStart(2, "0")}</span>
-        <span>PORTRAITS / MINIATURES / AGENTS</span>
+        <span>
+          {String(visibleEntities.length).padStart(2, "0")} CHARACTERS
+        </span>
+        <span>PORTRAITS / MINIATURES / MOTION FRAMES</span>
       </div>
 
       {visibleEntities.length > 0 ? (
@@ -180,6 +195,16 @@ const GalleryPage: FC = () => {
                   <span className="cast-card__details">
                     <span className="cast-card__group">{entity.type}</span>
                     <strong>{displayName}</strong>
+                    <span className="cast-card__open-icon" aria-hidden="true">
+                      <svg
+                        className="ui-icon"
+                        viewBox="0 0 24 24"
+                        focusable="false"
+                      >
+                        <path d="M5 12h14" />
+                        <path d="m13 6 6 6-6 6" />
+                      </svg>
+                    </span>
                   </span>
                 </button>
               </li>
@@ -237,13 +262,16 @@ const GalleryPage: FC = () => {
             <div className="gallery-lightbox__body">
               {isLoading && <Spinner />}
               {imageItems.length > 0 ? (
-                <ReactImageGallery
-                  items={imageItems}
-                  renderItem={renderItem}
-                  showFullscreenButton={false}
-                  showNav={false}
-                  showPlayButton={false}
-                />
+                <div className="gallery-lightbox__gallery" ref={galleryRef}>
+                  <ReactImageGallery
+                    items={imageItems}
+                    renderItem={renderItem}
+                    onSlide={setActiveImageIndex}
+                    showFullscreenButton={false}
+                    showNav={imageItems.length > 1}
+                    showPlayButton={false}
+                  />
+                </div>
               ) : (
                 <p className="empty-list-note">
                   This agent does not have any portraits yet.

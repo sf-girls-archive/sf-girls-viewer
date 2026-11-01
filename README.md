@@ -10,8 +10,12 @@ The **SF-Girls Viewer** is a web-based tool that allows players to explore in-ga
 
 - **Character Model Viewer** – Inspect detailed 2D/3D assets from the game
 - **Animation Playback** – Play character animations with adjustable speed and settings
+- **Stage Export** – Save the full animated canvas as a looping GIF or MP4 video
 - **Asset Exploration** – Browse and analyze in-game textures, sprites, and effects
 - **Optimized Performance** – Lightweight and efficient for smooth operation
+
+MP4 export depends on browser support for MP4 canvas recording. GIF export is
+available independently of that support.
 
 ## Getting Started
 

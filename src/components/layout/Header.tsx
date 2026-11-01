@@ -70,7 +70,17 @@ export const Header = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            GitHub
+            <svg
+              className="ui-icon header-text-link__icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="m8 8-4 4 4 4" />
+              <path d="m16 8 4 4-4 4" />
+              <path d="m14 5-4 14" />
+            </svg>
+            <span>GitHub</span>
           </a>
           <a
             className="header-text-link"
@@ -78,7 +88,17 @@ export const Header = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Support
+            <svg
+              className="ui-icon header-text-link__icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M5 8h12v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" />
+              <path d="M17 10h1a2.5 2.5 0 0 1 0 5h-1" />
+              <path d="M9 5c0-1 .8-1.5.8-2.5M13 5c0-1 .8-1.5.8-2.5" />
+            </svg>
+            <span>Support</span>
           </a>
         </div>
       </div>
